@@ -1,5 +1,10 @@
 # lol.trq.helios
 
+[![CI](https://github.com/trq-lol/lol.trq.helios/actions/workflows/ci.yml/badge.svg)](https://github.com/trq-lol/lol.trq.helios/actions/workflows/ci.yml)
+[![Java](https://img.shields.io/badge/java-17%2B-informational)](https://github.com/trq-lol/lol.trq.helios#requirements)
+[![OpenGL](https://img.shields.io/badge/OpenGL-4.1%20core-informational)](docs/opengl.md)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 A rendering library for Minecraft Forge 1.8.9 running on LWJGL 3: SDF shapes, MSDF text, shaders, framebuffers,
 blur and bloom, with strict GL state discipline so vanilla and OptiFine keep a coherent state.
 
@@ -228,3 +233,7 @@ every doc and core source file. The tests under `helios/src/test` are the execut
 
 [MIT](LICENSE). The bundled Inter font is under the SIL Open Font License 1.1, and `fontgen` ports parts of msdfgen
 (MIT); see [NOTICE.md](NOTICE.md).
+
+## Activity
+
+![Repobeats analytics image](https://repobeats.axiom.co/api/embed/2735f359d4225648d9919773a9f33c3ff47d820b.svg "Repobeats analytics image")
