@@ -36,6 +36,8 @@ public final class FakeGl implements GlBackend, GlStateCache {
             case BLEND_DST_RGB -> blend[1];
             case BLEND_SRC_ALPHA -> blend[2];
             case BLEND_DST_ALPHA -> blend[3];
+            case ACTIVE_TEXTURE -> activeUnit;
+            case TEXTURE_BINDING_2D -> textureByUnit.getOrDefault(activeUnit, 0);
             default -> ints.getOrDefault(pname, 0);
         };
     }
@@ -44,6 +46,8 @@ public final class FakeGl implements GlBackend, GlStateCache {
     public void getIntegers(int pname, int[] out) {
         if (pname == VIEWPORT) {
             System.arraycopy(viewport, 0, out, 0, 4);
+        } else if (pname == SCISSOR_BOX) {
+            System.arraycopy(scissorBox, 0, out, 0, 4);
         }
     }
 
@@ -235,5 +239,102 @@ public final class FakeGl implements GlBackend, GlStateCache {
     @Override
     public void texture2D(boolean on) {
         setEnabled(TEXTURE_2D, on);
+    }
+
+    // The host cache: in tests it forwards straight to the fake GL.
+    // activeTexture and bindTexture are shared with GlBackend.
+
+    public final List<String[]> linkedAttributes = new ArrayList<>();
+    public final List<java.nio.ByteBuffer> streamed = new ArrayList<>();
+    public final Set<Integer> attribsEnabled = new HashSet<>();
+    public final Map<Integer, Integer> textureByUnit = new HashMap<>();
+    public final int[] scissorBox = new int[4];
+    public int activeUnit = TEXTURE0;
+    public final Set<Integer> liveBuffers = new HashSet<>();
+
+    @Override
+    public int linkProgram(String[] attributes, int... shaders) {
+        linkedAttributes.add(attributes.clone());
+        return linkProgram(shaders);
+    }
+
+    @Override
+    public int createBuffer() {
+        int id = nextId++;
+        liveBuffers.add(id);
+        return id;
+    }
+
+    @Override
+    public void deleteBuffer(int buffer) {
+        liveBuffers.remove(buffer);
+    }
+
+    @Override
+    public void bindArrayBuffer(int buffer) {
+        calls.add("bindArrayBuffer " + buffer);
+        ints.put(ARRAY_BUFFER_BINDING, buffer);
+    }
+
+    @Override
+    public void streamArrayBuffer(java.nio.ByteBuffer data) {
+        java.nio.ByteBuffer copy =
+                java.nio.ByteBuffer.allocate(data.remaining()).order(data.order());
+        copy.put(data.duplicate());
+        copy.flip();
+        streamed.add(copy);
+        calls.add("stream " + copy.remaining());
+    }
+
+    @Override
+    public boolean vertexAttribEnabled(int index) {
+        return attribsEnabled.contains(index);
+    }
+
+    @Override
+    public void vertexAttribArray(int index, boolean on) {
+        calls.add((on ? "enableAttrib " : "disableAttrib ") + index);
+        if (on) {
+            attribsEnabled.add(index);
+        } else {
+            attribsEnabled.remove(index);
+        }
+    }
+
+    @Override
+    public void vertexAttribPointer(int index, int size, int type, boolean normalized, int stride, long offset) {
+        calls.add("attribPointer " + index + " " + size + " " + type + " " + normalized + " " + stride + " " + offset);
+    }
+
+    @Override
+    public void drawArrays(int mode, int first, int count) {
+        calls.add("drawArrays " + mode + " " + first + " " + count);
+    }
+
+    @Override
+    public void activeTexture(int unit) {
+        calls.add("activeTexture " + (unit - TEXTURE0));
+        activeUnit = unit;
+        ints.put(ACTIVE_TEXTURE, unit);
+    }
+
+    @Override
+    public void bindTexture(int texture) {
+        calls.add("bindTexture " + texture);
+        textureByUnit.put(activeUnit, texture);
+    }
+
+    @Override
+    public void copyToBoundTexture(int width, int height) {
+        calls.add("copy " + width + "x" + height + " -> " + textureByUnit.getOrDefault(activeUnit, 0));
+    }
+
+    @Override
+    public void scissor(int x, int y, int width, int height) {
+        calls.add("scissor " + x + "," + y + "," + width + "," + height);
+        scissorBox[0] = x;
+        scissorBox[1] = y;
+        scissorBox[2] = width;
+        scissorBox[3] = height;
     }
 }

@@ -55,4 +55,14 @@ public final class DirectGlStateCache implements GlStateCache {
     public void color(float r, float g, float b, float a) {
         gl.color(r, g, b, a);
     }
+
+    @Override
+    public void activeTexture(int unit) {
+        gl.activeTexture(unit);
+    }
+
+    @Override
+    public void bindTexture(int texture) {
+        gl.bindTexture(texture);
+    }
 }

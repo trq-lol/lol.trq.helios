@@ -29,6 +29,8 @@ public final class MinecraftGlStateCache implements GlStateCache {
     private final MethodHandle enableTexture2D;
     private final MethodHandle disableTexture2D;
     private final MethodHandle color;
+    private final MethodHandle setActiveTexture;
+    private final MethodHandle bindTexture;
 
     /**
      * Resolves {@code GlStateManager}.
@@ -65,6 +67,9 @@ public final class MinecraftGlStateCache implements GlStateCache {
                 "func_179131_c",
                 "color",
                 MethodType.methodType(void.class, float.class, float.class, float.class, float.class));
+        MethodType i = MethodType.methodType(void.class, int.class);
+        setActiveTexture = find(gsm, "func_179138_g", "setActiveTexture", i);
+        bindTexture = find(gsm, "func_179144_i", "bindTexture", i);
     }
 
     private static MethodHandle find(Class<?> owner, String srg, String mcp, MethodType type) {
@@ -127,6 +132,24 @@ public final class MinecraftGlStateCache implements GlStateCache {
     public void color(float r, float g, float b, float a) {
         try {
             color.invokeExact(r, g, b, a);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    @Override
+    public void activeTexture(int unit) {
+        try {
+            setActiveTexture.invokeExact(unit);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    @Override
+    public void bindTexture(int texture) {
+        try {
+            bindTexture.invokeExact(texture);
         } catch (Throwable t) {
             throw rethrow(t);
         }

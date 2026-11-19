@@ -51,8 +51,21 @@ public final class StateGuard implements AutoCloseable {
         /** The framebuffer bound to {@code GL_FRAMEBUFFER}. */
         FRAMEBUFFER,
         /** The viewport. */
-        VIEWPORT
+        VIEWPORT,
+        /** The buffer bound to {@code GL_ARRAY_BUFFER}. */
+        ARRAY_BUFFER,
+        /** Which generic vertex attribute arrays are enabled. */
+        VERTEX_ATTRIBS,
+        /** The active texture unit. */
+        ACTIVE_TEXTURE,
+        /** The 2D texture bound on each touched unit. */
+        TEXTURES,
+        /** {@code GL_SCISSOR_TEST} and the scissor box. */
+        SCISSOR
     }
+
+    private static final int MAX_ATTRIBS = 16;
+    private static final int MAX_UNITS = 8;
 
     private final GlBackend gl;
     private final GlStateCache cache;
@@ -64,6 +77,14 @@ public final class StateGuard implements AutoCloseable {
     private final int[] viewport = new int[4];
     private int program;
     private int framebuffer;
+    private int arrayBuffer;
+    private int attribsTouched;
+    private int attribsEnabled;
+    private int activeTexture;
+    private int unitsTouched;
+    private final int[] textures = new int[MAX_UNITS];
+    private boolean scissorEnabled;
+    private final int[] scissorBox = new int[4];
     private boolean closed;
 
     private StateGuard(GlBackend gl, GlStateCache cache) {
@@ -239,6 +260,88 @@ public final class StateGuard implements AutoCloseable {
     }
 
     /**
+     * Binds an array buffer.
+     *
+     * @param id the buffer, or 0
+     * @return this guard
+     */
+    public StateGuard arrayBuffer(int id) {
+        if (save(Slot.ARRAY_BUFFER)) {
+            arrayBuffer = gl.getInteger(GlBackend.ARRAY_BUFFER_BINDING);
+        }
+        gl.bindArrayBuffer(id);
+        return this;
+    }
+
+    /**
+     * Enables or disables a generic vertex attribute array.
+     *
+     * @param index the attribute, below 16
+     * @param on whether it is enabled
+     * @return this guard
+     */
+    public StateGuard vertexAttrib(int index, boolean on) {
+        if (index < 0 || index >= MAX_ATTRIBS) {
+            throw new IllegalArgumentException("attribute index out of range: " + index);
+        }
+        save(Slot.VERTEX_ATTRIBS);
+        int bit = 1 << index;
+        if ((attribsTouched & bit) == 0) {
+            attribsTouched |= bit;
+            if (gl.vertexAttribEnabled(index)) {
+                attribsEnabled |= bit;
+            }
+        }
+        gl.vertexAttribArray(index, on);
+        return this;
+    }
+
+    /**
+     * Binds a 2D texture on a texture unit, leaving that unit active.
+     *
+     * @param unit the unit number, below 8
+     * @param texture the texture
+     * @return this guard
+     */
+    public StateGuard texture(int unit, int texture) {
+        if (unit < 0 || unit >= MAX_UNITS) {
+            throw new IllegalArgumentException("texture unit out of range: " + unit);
+        }
+        if (save(Slot.ACTIVE_TEXTURE)) {
+            activeTexture = gl.getInteger(GlBackend.ACTIVE_TEXTURE);
+        }
+        cache.activeTexture(GlBackend.TEXTURE0 + unit);
+        save(Slot.TEXTURES);
+        int bit = 1 << unit;
+        if ((unitsTouched & bit) == 0) {
+            unitsTouched |= bit;
+            textures[unit] = gl.getInteger(GlBackend.TEXTURE_BINDING_2D);
+        }
+        cache.bindTexture(texture);
+        return this;
+    }
+
+    /**
+     * Sets the scissor test and box.
+     *
+     * @param on whether the scissor test is on
+     * @param x left in pixels
+     * @param y bottom in pixels
+     * @param width width in pixels
+     * @param height height in pixels
+     * @return this guard
+     */
+    public StateGuard scissor(boolean on, int x, int y, int width, int height) {
+        if (save(Slot.SCISSOR)) {
+            scissorEnabled = gl.isEnabled(GlBackend.SCISSOR_TEST);
+            gl.getIntegers(GlBackend.SCISSOR_BOX, scissorBox);
+        }
+        gl.scissor(x, y, width, height);
+        gl.setEnabled(GlBackend.SCISSOR_TEST, on);
+        return this;
+    }
+
+    /**
      * Returns the slots this guard will restore, in first-touch order.
      *
      * @return an unmodifiable view
@@ -269,6 +372,27 @@ public final class StateGuard implements AutoCloseable {
                 case PROGRAM -> gl.useProgram(program);
                 case FRAMEBUFFER -> gl.bindFramebuffer(framebuffer);
                 case VIEWPORT -> gl.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+                case ARRAY_BUFFER -> gl.bindArrayBuffer(arrayBuffer);
+                case VERTEX_ATTRIBS -> {
+                    for (int a = 0; a < MAX_ATTRIBS; a++) {
+                        if ((attribsTouched & (1 << a)) != 0) {
+                            gl.vertexAttribArray(a, (attribsEnabled & (1 << a)) != 0);
+                        }
+                    }
+                }
+                case ACTIVE_TEXTURE -> cache.activeTexture(activeTexture);
+                case TEXTURES -> {
+                    for (int u = 0; u < MAX_UNITS; u++) {
+                        if ((unitsTouched & (1 << u)) != 0) {
+                            cache.activeTexture(GlBackend.TEXTURE0 + u);
+                            cache.bindTexture(textures[u]);
+                        }
+                    }
+                }
+                case SCISSOR -> {
+                    gl.scissor(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3]);
+                    gl.setEnabled(GlBackend.SCISSOR_TEST, scissorEnabled);
+                }
             }
         }
     }

@@ -285,4 +285,128 @@ public interface GlBackend {
      * @param v1 texture coordinate at the bottom
      */
     void quad(float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1);
+
+    /** {@code GL_ARRAY_BUFFER_BINDING}. */
+    int ARRAY_BUFFER_BINDING = 0x8894;
+    /** {@code GL_ACTIVE_TEXTURE}. */
+    int ACTIVE_TEXTURE = 0x84E0;
+    /** {@code GL_TEXTURE0}. */
+    int TEXTURE0 = 0x84C0;
+    /** {@code GL_TEXTURE_BINDING_2D}. */
+    int TEXTURE_BINDING_2D = 0x8069;
+    /** {@code GL_SCISSOR_BOX}. */
+    int SCISSOR_BOX = 0x0C10;
+    /** {@code GL_QUADS}. */
+    int QUADS = 0x0007;
+    /** {@code GL_FLOAT}. */
+    int FLOAT = 0x1406;
+    /** {@code GL_UNSIGNED_BYTE}. */
+    int UNSIGNED_BYTE = 0x1401;
+
+    /**
+     * Links a program after binding attribute names to fixed locations.
+     *
+     * @param attributes attribute names, bound to their index in this array
+     * @param shaders the compiled shaders
+     * @return the program id; check {@link #programLinked}
+     */
+    int linkProgram(String[] attributes, int... shaders);
+
+    /**
+     * {@code glGenBuffers}.
+     *
+     * @return a new buffer name
+     */
+    int createBuffer();
+
+    /**
+     * {@code glDeleteBuffers}.
+     *
+     * @param buffer the buffer
+     */
+    void deleteBuffer(int buffer);
+
+    /**
+     * {@code glBindBuffer(GL_ARRAY_BUFFER, buffer)}.
+     *
+     * @param buffer the buffer, or 0
+     */
+    void bindArrayBuffer(int buffer);
+
+    /**
+     * Replaces the bound array buffer's storage with the bytes from position to limit, as a stream draw. Allocating
+     * new storage each time lets the driver keep using the old one for draws still in flight.
+     *
+     * @param data the vertex bytes
+     */
+    void streamArrayBuffer(java.nio.ByteBuffer data);
+
+    /**
+     * Returns whether a generic vertex attribute array is enabled.
+     *
+     * @param index the attribute index
+     * @return {@code GL_VERTEX_ATTRIB_ARRAY_ENABLED}
+     */
+    boolean vertexAttribEnabled(int index);
+
+    /**
+     * Enables or disables a generic vertex attribute array.
+     *
+     * @param index the attribute index
+     * @param on whether it is enabled
+     */
+    void vertexAttribArray(int index, boolean on);
+
+    /**
+     * {@code glVertexAttribPointer} into the bound array buffer.
+     *
+     * @param index the attribute index
+     * @param size components
+     * @param type {@link #FLOAT} or {@link #UNSIGNED_BYTE}
+     * @param normalized whether integers map to {@code [0, 1]}
+     * @param stride bytes per vertex
+     * @param offset byte offset in the vertex
+     */
+    void vertexAttribPointer(int index, int size, int type, boolean normalized, int stride, long offset);
+
+    /**
+     * {@code glDrawArrays}.
+     *
+     * @param mode the primitive, such as {@link #QUADS}
+     * @param first the first vertex
+     * @param count the vertex count
+     */
+    void drawArrays(int mode, int first, int count);
+
+    /**
+     * {@code glActiveTexture}, directly.
+     *
+     * @param unit {@link #TEXTURE0} plus the unit number
+     */
+    void activeTexture(int unit);
+
+    /**
+     * {@code glBindTexture(GL_TEXTURE_2D, texture)}, directly.
+     *
+     * @param texture the texture
+     */
+    void bindTexture(int texture);
+
+    /**
+     * Copies the lower-left corner of the current read framebuffer into the bound 2D texture.
+     *
+     * @param width width in pixels
+     * @param height height in pixels
+     */
+    void copyToBoundTexture(int width, int height);
+
+    /**
+     * {@code glScissor}.
+     *
+     * @param x left
+     * @param y bottom
+     * @param width width in pixels
+     * @param height height in pixels
+     */
+    void scissor(int x, int y, int width, int height);
 }

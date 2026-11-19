@@ -105,4 +105,37 @@ class StateGuardTest {
         }
         assertEquals(0, gl.getInteger(CURRENT_PROGRAM));
     }
+
+    @Test
+    void texturesAttribsBufferAndScissorAreRestored() {
+        gl.activeUnit = lol.trq.helios.gl.GlBackend.TEXTURE0 + 2;
+        gl.textureByUnit.put(lol.trq.helios.gl.GlBackend.TEXTURE0, 5);
+        gl.textureByUnit.put(lol.trq.helios.gl.GlBackend.TEXTURE0 + 1, 6);
+        gl.attribsEnabled.add(1);
+        gl.ints.put(lol.trq.helios.gl.GlBackend.ARRAY_BUFFER_BINDING, 3);
+        gl.scissorBox[2] = 50;
+        try (StateGuard g = StateGuard.begin(gl, gl)) {
+            g.texture(0, 40)
+                    .texture(1, 41)
+                    .vertexAttrib(0, true)
+                    .vertexAttrib(1, false)
+                    .arrayBuffer(8);
+            g.scissor(true, 1, 2, 3, 4);
+        }
+        assertEquals(lol.trq.helios.gl.GlBackend.TEXTURE0 + 2, gl.activeUnit);
+        assertEquals(5, gl.textureByUnit.get(lol.trq.helios.gl.GlBackend.TEXTURE0));
+        assertEquals(6, gl.textureByUnit.get(lol.trq.helios.gl.GlBackend.TEXTURE0 + 1));
+        assertEquals(java.util.Set.of(1), gl.attribsEnabled);
+        assertEquals(3, gl.getInteger(lol.trq.helios.gl.GlBackend.ARRAY_BUFFER_BINDING));
+        assertFalse(gl.isEnabled(lol.trq.helios.gl.GlBackend.SCISSOR_TEST));
+        assertEquals(50, gl.scissorBox[2]);
+    }
+
+    @Test
+    void outOfRangeIndicesThrow() {
+        StateGuard g = StateGuard.begin(gl, gl);
+        assertThrows(IllegalArgumentException.class, () -> g.vertexAttrib(16, true));
+        assertThrows(IllegalArgumentException.class, () -> g.texture(8, 1));
+        g.close();
+    }
 }

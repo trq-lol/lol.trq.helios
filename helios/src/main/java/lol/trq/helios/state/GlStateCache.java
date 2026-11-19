@@ -71,4 +71,18 @@ public interface GlStateCache {
      * @param a alpha
      */
     void color(float r, float g, float b, float a);
+
+    /**
+     * Selects the active texture unit.
+     *
+     * @param unit {@code GL_TEXTURE0} plus the unit number
+     */
+    void activeTexture(int unit);
+
+    /**
+     * Binds a 2D texture on the active unit.
+     *
+     * @param texture the texture
+     */
+    void bindTexture(int texture);
 }

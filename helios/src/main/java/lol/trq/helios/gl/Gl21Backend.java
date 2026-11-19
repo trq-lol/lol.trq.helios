@@ -5,7 +5,9 @@ import java.nio.ByteBuffer;
 import org.lwjgl.opengl.ARBFramebufferObject;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
+import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GLCapabilities;
 
@@ -252,6 +254,86 @@ public final class Gl21Backend implements GlBackend {
         GL11.glTexCoord2f(u1, v0);
         GL11.glVertex2f(x1, y0);
         GL11.glEnd();
+    }
+
+    @Override
+    public int linkProgram(String[] attributes, int... shaders) {
+        int program = GL20.glCreateProgram();
+        for (int s : shaders) {
+            GL20.glAttachShader(program, s);
+        }
+        for (int i = 0; i < attributes.length; i++) {
+            GL20.glBindAttribLocation(program, i, attributes[i]);
+        }
+        GL20.glLinkProgram(program);
+        for (int s : shaders) {
+            GL20.glDetachShader(program, s);
+        }
+        return program;
+    }
+
+    @Override
+    public int createBuffer() {
+        return GL15.glGenBuffers();
+    }
+
+    @Override
+    public void deleteBuffer(int buffer) {
+        GL15.glDeleteBuffers(buffer);
+    }
+
+    @Override
+    public void bindArrayBuffer(int buffer) {
+        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, buffer);
+    }
+
+    @Override
+    public void streamArrayBuffer(ByteBuffer data) {
+        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, data, GL15.GL_STREAM_DRAW);
+    }
+
+    @Override
+    public boolean vertexAttribEnabled(int index) {
+        return GL20.glGetVertexAttribi(index, GL20.GL_VERTEX_ATTRIB_ARRAY_ENABLED) != 0;
+    }
+
+    @Override
+    public void vertexAttribArray(int index, boolean on) {
+        if (on) {
+            GL20.glEnableVertexAttribArray(index);
+        } else {
+            GL20.glDisableVertexAttribArray(index);
+        }
+    }
+
+    @Override
+    public void vertexAttribPointer(int index, int size, int type, boolean normalized, int stride, long offset) {
+        GL20.glVertexAttribPointer(index, size, type, normalized, stride, offset);
+    }
+
+    @Override
+    public void drawArrays(int mode, int first, int count) {
+        GL11.glDrawArrays(mode, first, count);
+    }
+
+    @Override
+    public void activeTexture(int unit) {
+        GL13.glActiveTexture(unit);
+    }
+
+    @Override
+    public void bindTexture(int texture) {
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
+    }
+
+    @Override
+    public void copyToBoundTexture(int width, int height) {
+        GL11.glCopyTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+    }
+
+    @Override
+    public void scissor(int x, int y, int width, int height) {
+        GL11.glScissor(x, y, width, height);
     }
 
     /**
