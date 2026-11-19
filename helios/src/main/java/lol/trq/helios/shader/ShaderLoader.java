@@ -41,7 +41,21 @@ public final class ShaderLoader {
      * @throws ShaderException on a preprocess, compile or link failure
      */
     public ShaderProgram load(String vertex, String fragment, Map<String, String> defines) {
-        Spec spec = new Spec(vertex, fragment, Map.copyOf(defines));
+        return load(vertex, fragment, defines, List.of());
+    }
+
+    /**
+     * Loads a program and binds vertex attributes to fixed locations before linking.
+     *
+     * @param vertex the vertex shader entry file
+     * @param fragment the fragment shader entry file
+     * @param defines defines injected into both stages
+     * @param attributes attribute names, bound to their index in this list
+     * @return the linked program
+     * @throws ShaderException on a preprocess, compile or link failure
+     */
+    public ShaderProgram load(String vertex, String fragment, Map<String, String> defines, List<String> attributes) {
+        Spec spec = new Spec(vertex, fragment, Map.copyOf(defines), List.copyOf(attributes));
         ShaderProgram program = new ShaderProgram(gl, vertex + "+" + fragment, build(spec));
         programs.put(program, spec);
         return program;
@@ -76,7 +90,9 @@ public final class ShaderLoader {
             gl.deleteShader(vs);
             throw e;
         }
-        int program = gl.linkProgram(vs, fs);
+        int program = spec.attributes.isEmpty()
+                ? gl.linkProgram(vs, fs)
+                : gl.linkProgram(spec.attributes.toArray(new String[0]), vs, fs);
         gl.deleteShader(vs);
         gl.deleteShader(fs);
         if (!gl.programLinked(program)) {
@@ -98,5 +114,5 @@ public final class ShaderLoader {
         return shader;
     }
 
-    private record Spec(String vertex, String fragment, Map<String, String> defines) {}
+    private record Spec(String vertex, String fragment, Map<String, String> defines, List<String> attributes) {}
 }
