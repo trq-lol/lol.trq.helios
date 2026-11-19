@@ -17,6 +17,9 @@ def lazarusVersion = rootProject.property('lazarusVersion')
 // -PlazarusJar=<path> runs against a locally built Lazarus jar instead of the release, for example one built from a
 // branch that the release does not include yet.
 def localLazarus = project.findProperty('lazarusJar')
+if (localLazarus != null && localLazarus.toString().isBlank()) {
+    throw new GradleException('-PlazarusJar is empty')
+}
 def lazarusJar = localLazarus
         ? rootProject.layout.projectDirectory.file(new File(localLazarus.toString()).absolutePath)
         : cacheDir.file("lazarus/lol.trq.lazarus-${lazarusVersion}.jar")

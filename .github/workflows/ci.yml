@@ -46,7 +46,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - name: Build Lazarus (${{ env.LAZARUS_REF }})
         working-directory: .lazarus
-        run: ./gradlew :runtime:jar -x test
+        run: ./gradlew :runtime:shadowJar -x test
       - name: Install a virtual display and software OpenGL
         run: |
           sudo apt-get update
