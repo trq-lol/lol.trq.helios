@@ -7,7 +7,7 @@ the GPU cost of real workloads in the game (the harness). Report what you measur
 
 ```
 ./gradlew :helios:jmh                                  # all CPU benchmarks, GC profiler on
-./gradlew :helios:jmh -Pjmh.include=textLine           # one benchmark
+./gradlew :helios:jmh -Pjmh.include=textLine           # one benchmark (on Windows, avoid | in the pattern)
 ./gradlew :harness:runHarness25 -Pbench                # GPU timings in the game (opens a window)
 ```
 
@@ -33,6 +33,15 @@ are per shape, amortized over a 1000-shape batch and its flush.
 | `stateGuard` | open a guard, touch six slots, restore | 41.7 ns, 544 B | 12.8 ns, 160 B |
 | `blurBehindCpu` | blur-behind bookkeeping (GL calls are no-ops) | 857 ns, 5928 B | 446 ns, 2824 B |
 | `preprocessShader` | expand `shape.fsh` (load time only) | 39.6 µs | 38.7 µs |
+
+Added with the utilities (H3), same machine:
+
+| Benchmark | What | Result |
+|---|---|---|
+| `colorLerpHsb` | HSB interpolation of two colours | 19.7 ns, 0 B |
+| `projectBox` | project an entity-sized box to its 2D bounds | 68.2 ns, 0 B |
+| `animationValue` | read an eased animation (includes the clock read) | 32.5 ns, 0 B |
+| `smoothUpdate` | advance a smoothed value (includes the clock read) | 33.4 ns, 0 B |
 
 "Before" is the first measurement of the H2 code. The changes: kerning lookups for ASCII pairs go through a dense
 table instead of a boxed `HashMap` key; `StateGuard` keeps saved state in fields and bit masks instead of an

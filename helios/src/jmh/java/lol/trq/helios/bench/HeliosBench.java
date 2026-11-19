@@ -4,9 +4,15 @@ package lol.trq.helios.bench;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import lol.trq.helios.Helios;
+import lol.trq.helios.anim.Animation;
+import lol.trq.helios.anim.Easing;
+import lol.trq.helios.anim.Smooth;
 import lol.trq.helios.batch.Paint;
 import lol.trq.helios.batch.ShapeBatch;
+import lol.trq.helios.color.Colors;
 import lol.trq.helios.fbo.SurfaceSize;
+import lol.trq.helios.math.Mat4;
+import lol.trq.helios.math.Projector;
 import lol.trq.helios.shader.ShaderPreprocessor;
 import lol.trq.helios.state.StateGuard;
 import lol.trq.helios.text.TextStyle;
@@ -35,6 +41,11 @@ public class HeliosBench {
     private TextStyle shadowed;
     private Paint gradient;
     private ShaderPreprocessor preprocessor;
+    private Projector projector;
+    private final float[] box = new float[4];
+    private Animation animation;
+    private Smooth smooth;
+    private float t;
 
     @Setup
     public void setup() {
@@ -58,6 +69,14 @@ public class HeliosBench {
                 .build();
         gradient = Paint.linear(30, 0xFFFF0000, 0xFF0000FF);
         preprocessor = new ShaderPreprocessor(Helios.builtinShaders(), 120);
+        projector = new Projector()
+                .set(
+                        Mat4.translation(0, -1.6f, 0, new float[16]),
+                        Mat4.perspective(70, 16 / 9f, 0.05f, 256, new float[16]),
+                        new int[] {0, 0, 1920, 1080},
+                        0.5f);
+        animation = new Animation(300, Easing.CUBIC_OUT).forward(true);
+        smooth = new Smooth(12).target(100);
     }
 
     /** One rounded rect in one colour, per shape, amortized over a 1000-shape batch and its flush. */
@@ -141,6 +160,31 @@ public class HeliosBench {
     @Benchmark
     public void preprocessShader(Blackhole bh) {
         bh.consume(preprocessor.process("shape.fsh", Map.of("A", "1")));
+    }
+
+    /** HSB colour interpolation, the short way round the hue circle. */
+    @Benchmark
+    public int colorLerpHsb() {
+        t = t > 1 ? 0 : t + 0.001f;
+        return Colors.lerpHsb(0xFFFF0000, 0xFF0000FF, t);
+    }
+
+    /** Projecting an entity-sized box to its 2D screen bounds (eight corners). */
+    @Benchmark
+    public boolean projectBox() {
+        return projector.projectBox(-0.3, 0, -5.3, 0.3, 1.8, -4.7, box);
+    }
+
+    /** Reading an eased animation value. */
+    @Benchmark
+    public double animationValue() {
+        return animation.value();
+    }
+
+    /** Advancing a smoothed value. */
+    @Benchmark
+    public float smoothUpdate() {
+        return smooth.update();
     }
 
     /** Blur behind a rect: capture, four-level dual Kawase, composite, all with GL as no-ops. */
