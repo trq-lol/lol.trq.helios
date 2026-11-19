@@ -20,23 +20,15 @@ jobs:
 
   # Boots Forge 1.8.9 on LWJGL 3 through Lazarus in core mode (an OpenGL 4.1+ core context, Mesa llvmpipe under a
   # virtual display) and fails unless every in-game rendering check passes, including blur and bloom against the
-  # 854x480 Mesa references, and Lazarus reports no GL error. Core mode is on the Lazarus branch below until it ships
-  # in a release; the harness then goes back to the checksummed release jar.
+  # 854x480 Mesa references, and Lazarus reports no GL error.
   harness:
     runs-on: ubuntu-latest
-    env:
-      LAZARUS_REF: feat/core-gl
     strategy:
       fail-fast: false
       matrix:
         java: [17, 25]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/checkout@v7
-        with:
-          repository: trq-lol/lol.trq.lazarus
-          ref: ${{ env.LAZARUS_REF }}
-          path: .lazarus
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -44,9 +36,6 @@ jobs:
             ${{ matrix.java }}
             25
       - uses: gradle/actions/setup-gradle@v6
-      - name: Build Lazarus (${{ env.LAZARUS_REF }})
-        working-directory: .lazarus
-        run: ./gradlew :runtime:shadowJar -x test
       - name: Install a virtual display and software OpenGL
         run: |
           sudo apt-get update
@@ -60,9 +49,8 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
         run: |
-          jar=$(ls .lazarus/runtime/build/libs/lol.trq.lazarus-*.jar | grep -v -e sources -e thin | head -1)
           xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :harness:runHarness${{ matrix.java }} -PrequireReferences \
-            -Ptimeout=900 "-PlazarusJar=$jar" "-PjvmArgs=-Dlazarus.gl=core -Dlazarus.gl.debug=true" | tee harness.log
+            -Ptimeout=900 "-PjvmArgs=-Dlazarus.gl=core -Dlazarus.gl.debug=true" | tee harness.log
           grep -q "HELIOS-HARNESS OK java=${{ matrix.java }}" harness.log
           ! grep -q "\[lazarus\] GL error" harness.log
       - uses: actions/upload-artifact@v4
