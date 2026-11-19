@@ -9,7 +9,6 @@
 - [CLAUDE.md](CLAUDE.md): mental model, patterns that matter, traps
 - [CHANGELOG](CHANGELOG.md): release notes
 - [CONTRIBUTING](CONTRIBUTING.md): commit and test conventions
-- [NOTICE](NOTICE.md): the LGPL harness file
 
 ## Core source
 

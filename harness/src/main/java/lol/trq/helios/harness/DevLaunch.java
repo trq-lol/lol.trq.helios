@@ -1,5 +1,5 @@
-/* SPDX-License-Identifier: LGPL-3.0-or-later */
-// Copied from the lol.trq.lazarus harness, which is LGPL-3.0-or-later; see NOTICE.md. Development only, never
+/* SPDX-License-Identifier: MIT */
+// Adapted from the lol.trq.lazarus development harness, relicensed to MIT by its authors. Development only.
 // published.
 package lol.trq.helios.harness;
 

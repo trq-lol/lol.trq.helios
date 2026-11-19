@@ -70,4 +70,4 @@ every doc and core source file. The tests under `helios/src/test` are the execut
 
 ## License
 
-[MIT](LICENSE). The development harness launcher is LGPL-3.0-or-later; see [NOTICE.md](NOTICE.md).
+[MIT](LICENSE).
