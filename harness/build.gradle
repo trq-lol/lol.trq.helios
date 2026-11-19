@@ -24,7 +24,7 @@ def lazarusJar = localLazarus
         ? rootProject.layout.projectDirectory.file(rootProject.file(localLazarus.toString()).absolutePath)
         : cacheDir.file("lazarus/lol.trq.lazarus-${lazarusVersion}.jar")
 def lwjgl3Jar = localLazarus
-        ? layout.buildDirectory.file('lazarus-local/lwjgl3.jar').get()
+        ? layout.buildDirectory.file('lazarus-local/lol.trq.lazarus-lwjgl3-local.jar').get()
         : cacheDir.file("lazarus/lol.trq.lazarus-lwjgl3-${lazarusVersion}.jar")
 def modJar = project(':harness-mod').tasks.named('jar')
 
