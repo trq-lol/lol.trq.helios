@@ -83,8 +83,23 @@ GPU (harness), Lazarus `feat/core-gl` at `fce8f84`, `-Dlazarus.gl=core -Dlazarus
 | Full-screen blur behind, 4 iterations | 0.20 ms | 0.31 ms | 0.17 ms |
 | Full-screen bloom, 3 iterations | 0.15 ms | 0.17 ms | 0.14 ms |
 
-Faster than the legacy path across the board on this machine. These are NVIDIA numbers; Apple's driver is where
-uploads cost most, and the Mac run is still to come.
+Faster than the legacy path across the board on this machine.
+
+macOS, Apple M2 ("4.1 Metal"), 1708x960 Retina framebuffer, Java 25, Lazarus `feat/core-gl` at `0e47336`, one run per
+column. `map` is `-Dhelios.stream=map` (unsynchronized `glMapBufferRange` into the fenced ring):
+
+| Workload | `glBufferSubData` (default) | `map` |
+|---|---|---|
+| 10000 rounded rects | 7.99 ms | 8.24 ms |
+| 10000 circles with a radial gradient | 4.81 ms | 8.06 ms |
+| 2000 glyphs of 9 px text (32 lines) | 0.53 ms | 0.60 ms |
+| One MSDF text batch (1 line, 1 draw call) | 0.21 ms | 0.21 ms |
+| One blur pass (1 iteration, full screen) | 0.54 ms | 0.77 ms |
+| Full-screen blur behind, 4 iterations | 1.27 ms | 1.82 ms |
+| Full-screen bloom, 3 iterations | 1.21 ms | 1.25 ms |
+
+Mapping is nowhere faster on the M2, so `glBufferSubData` stays the default. The Mac framebuffer has 1.8 times the
+pixels of the Windows one, which accounts for most of the gap in the full-screen passes.
 
 ## GPU (harness, legacy context, H2)
 
