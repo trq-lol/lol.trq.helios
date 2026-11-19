@@ -164,4 +164,48 @@ class MeshRendererTest {
         assertTrue(gl.liveVertexArrays.isEmpty());
         assertTrue(gl.livePrograms.isEmpty());
     }
+
+    @Test
+    void aTriangleIsAQuadRepeatingItsLastVertex() {
+        meshes.quads().triangle(0, 0, 0, 0xFFFF0000, 1, 0, 0, 0xFF00FF00, 0, 1, 0, 0xFF0000FF);
+        meshes.flush();
+        ByteBuffer b = gl.streamed.get(0).order(ByteOrder.nativeOrder());
+        assertEquals(4 * MeshFormat.COLOR.stride(), b.remaining());
+        int stride = MeshFormat.COLOR.stride();
+        for (int i = 0; i < stride; i++) {
+            assertEquals(b.get(2 * stride + i), b.get(3 * stride + i), "byte " + i);
+        }
+        assertEquals(1, b.getFloat(stride));
+        assertTrue(gl.calls.contains(
+                "drawElements " + GlBackend.TRIANGLES + " 6 " + GlBackend.UNSIGNED_SHORT + " base 0"));
+    }
+
+    @Test
+    void stripsWriteOneSegmentPerNeighbourPair() {
+        float[] square = {0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0};
+        MeshRecorder open = new MeshRecorder(MeshFormat.LINE);
+        open.lines().strip(square, false, -1, 2);
+        assertEquals(3, open.quadCount());
+        MeshRecorder closed = new MeshRecorder(MeshFormat.LINE);
+        closed.lines().strip(square, true, -1, 2);
+        assertEquals(4, closed.quadCount());
+        MeshRecorder pair = new MeshRecorder(MeshFormat.LINE);
+        pair.lines().strip(new float[] {0, 0, 0, 1, 0, 0}, true, -1, 2);
+        assertEquals(1, pair.quadCount());
+        assertThrows(IllegalArgumentException.class, () -> open.lines().strip(new float[] {0, 0, 0}, false, -1, 1));
+        assertThrows(IllegalArgumentException.class, () -> open.lines().strip(new float[] {0, 0, 0, 1}, false, -1, 1));
+    }
+
+    @Test
+    void closingAStripJoinsTheLastPointToTheFirst() {
+        meshes.lines().strip(new float[] {0, 0, 0, 1, 0, 0, 1, 1, 0}, true, -1, 1);
+        meshes.flush();
+        // The renderer holds two quads, so the third segment is the first of the second upload.
+        ByteBuffer b = gl.streamed.get(1).order(ByteOrder.nativeOrder());
+        int last = 0;
+        assertEquals(1, b.getFloat(last));
+        assertEquals(1, b.getFloat(last + 4));
+        assertEquals(0, b.getFloat(last + 12));
+        assertEquals(0, b.getFloat(last + 16));
+    }
 }
