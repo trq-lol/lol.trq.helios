@@ -34,6 +34,7 @@ public class HarnessMod {
     private int menuTicks;
     private boolean checkRequested;
     private Integer exitCode;
+    private boolean quitting;
     private Integer menuResult;
     private boolean worldLaunched;
     private int worldTicks;
@@ -45,14 +46,41 @@ public class HarnessMod {
         FMLCommonHandler.instance().bus().register(this);
     }
 
+    /**
+     * Reports the result for the launcher, then quits the way the menu's Quit button does. Exiting the JVM from a
+     * client tick deadlocks with the shutdown hook that stops the integrated server, and the game would always exit 0
+     * through {@code shutdown()}, so the launcher takes the code from the printed line.
+     */
+    private void quit() {
+        System.out.println("HELIOS-HARNESS exit " + exitCode);
+        try {
+            Class<?> mc = Class.forName("net.minecraft.client.Minecraft", false, HarnessMod.class.getClassLoader());
+            Object minecraft = method(mc, "func_71410_x", "getMinecraft").invoke(null);
+            method(mc, "func_71400_g", "shutdown").invoke(minecraft);
+        } catch (ReflectiveOperationException e) {
+            System.out.println("HELIOS-HARNESS cannot shut down cleanly: " + e);
+            FMLCommonHandler.instance().exitJava(exitCode, false);
+        }
+    }
+
+    private static java.lang.reflect.Method method(Class<?> owner, String srg, String mcp)
+            throws NoSuchMethodException {
+        try {
+            return owner.getMethod(srg);
+        } catch (NoSuchMethodException e) {
+            return owner.getMethod(mcp);
+        }
+    }
+
     @SubscribeEvent
     public void onTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
         if (exitCode != null) {
-            if (!STAY) {
-                FMLCommonHandler.instance().exitJava(exitCode, false);
+            if (!STAY && !quitting) {
+                quitting = true;
+                quit();
             }
             return;
         }

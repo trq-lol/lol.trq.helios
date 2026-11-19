@@ -148,6 +148,7 @@ public final class DevLaunch {
         // Echo the game's output and count the driver errors Lazarus reports with -Dlazarus.gl.debug=true: any is a
         // failure, whatever the checks said.
         AtomicInteger glErrors = new AtomicInteger();
+        AtomicInteger reported = new AtomicInteger(-1);
         Thread pump = new Thread(() -> {
             try (BufferedReader reader =
                     new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
@@ -156,6 +157,10 @@ public final class DevLaunch {
                     System.out.println(line);
                     if (line.contains("[lazarus] GL error")) {
                         glErrors.incrementAndGet();
+                    }
+                    int at = line.indexOf("HELIOS-HARNESS exit ");
+                    if (at >= 0) {
+                        reported.set(Integer.parseInt(line.substring(at + 20).trim()));
                     }
                 }
             } catch (IOException e) {
@@ -171,7 +176,14 @@ public final class DevLaunch {
             System.exit(124);
         }
         pump.join(10_000);
+        // The test mod quits through Minecraft.shutdown(), which exits 0, and prints its result first.
         int exit = process.exitValue();
+        if (exit == 0) {
+            exit = reported.get() < 0 ? 1 : reported.get();
+            if (reported.get() < 0) {
+                System.out.println("[harness] FAIL the test mod reported no result");
+            }
+        }
         if (glErrors.get() > 0) {
             System.out.println("[harness] FAIL " + glErrors.get() + " GL error(s) reported by Lazarus");
             exit = exit == 0 ? 1 : exit;
@@ -400,11 +412,11 @@ public final class DevLaunch {
 
     private static void writeMutedOptions(Path gameDir) throws IOException {
         // Rewritten every launch: muted, framebuffers on, no splash screen, and no view bobbing so the camera looks
-        // exactly where
-        // the player faces (the world projection check depends on it).
+        // exactly where the player faces (the world projection check depends on it).
         Path options = gameDir.resolve("options.txt");
         Files.writeString(options, "soundCategory_master:0.0\nmusicVolume:0.0\nfboEnable:true\nbobView:false\n");
-        // Forge's splash screen draws from a second thread on a shared context; the checks do not need it.
+        // Forge's splash screen draws from a second thread on a shared context. Lazarus 0.2.0 core mode still reports
+        // GL errors from that thread on NVIDIA (fine on Apple), so it stays off until a Lazarus release fixes it.
         Path splash = gameDir.resolve("config/splash.properties");
         Files.createDirectories(splash.getParent());
         Files.writeString(splash, "enabled=false\n");

@@ -17,7 +17,8 @@ project uses [Semantic Versioning](https://semver.org/).
 - `StateGuard` saves the vertex array binding instead of vertex attribute flags; the alpha test, alpha function,
   `GL_TEXTURE_2D` and current colour slots are gone, as are the matching `GlStateCache` and `GlBackend` methods.
 - The harness runs in core mode only, on the Lazarus 0.2.0 release (`-PlazarusJar` for a local build), with the
-  splash screen off, and fails on any `[lazarus] GL error`.
+  splash screen off, and fails on any `[lazarus] GL error`. The test mod quits through `Minecraft.shutdown()` and
+  reports its result on a line, instead of exiting from a client tick, which could deadlock at shutdown.
 
 ### Added
 
