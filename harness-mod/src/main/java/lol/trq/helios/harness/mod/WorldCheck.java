@@ -114,6 +114,12 @@ final class WorldCheck {
         GlBackend gl = helios.gl();
         MeshRenderer meshes = helios.meshes();
         float[] m = new float[16];
+        int white = gl.createRgbTexture(
+                1,
+                1,
+                java.nio.ByteBuffer.allocateDirect(3)
+                        .put(new byte[] {-1, -1, -1})
+                        .flip());
         int texture = gl.createRgbTexture(
                 2,
                 2,
@@ -157,12 +163,12 @@ final class WorldCheck {
             meshes.lines().transform(null);
             meshes.quads()
                     .transform(m)
-                    .vertex(-3, 2, -4.1f, 0xC0FF2020)
-                    .vertex(3, 2, -4.1f, 0xC0FF2020)
-                    .vertex(3, 7, -4.1f, 0xC0FF2020)
-                    .vertex(-3, 7, -4.1f, 0xC0FF2020)
+                    .vertex(-3, 2, -4.1f, 0x80FF2020)
+                    .vertex(3, 2, -4.1f, 0x80FF2020)
+                    .vertex(3, 7, -4.1f, 0x80FF2020)
+                    .vertex(-3, 7, -4.1f, 0x80FF2020)
                     .transform(null);
-            meshes.draw(plate, m);
+            meshes.texture(white).draw(plate, m);
             meshes.texture(0).flush();
             int[] vp = new int[4];
             gl.getIntegers(GlBackend.VIEWPORT, vp);
@@ -176,6 +182,7 @@ final class WorldCheck {
             meshes.depth(true, true);
             plate.close();
             gl.deleteTexture(texture);
+            gl.deleteTexture(white);
         }
     }
 
@@ -187,8 +194,14 @@ final class WorldCheck {
         float[] p = new float[4];
         Mat4.transform(PlayerModel.anchor(pose, Attachment.HEAD, m), 0, 0, 0, 1, p);
         double above = p[1] - pose.y;
-        boolean head = !pose.sneaking && !pose.helmet && Math.abs(above - 1.88232421875) < 1e-3;
-        report("head anchor sits 1.882 blocks above the feet", head, "above " + above + " " + pose.sneaking);
+        // The anchor is the head top, half a block (8 scaled pixels) above the neck pivot, so pitch swings it down.
+        double reach = 8 * PlayerModel.PIXEL * PlayerModel.SCALE;
+        double expected = 1.88232421875 - reach + reach * Math.cos(Math.toRadians(pose.pitch));
+        boolean head = !pose.sneaking && !pose.helmet && Math.abs(above - expected) < 1e-3;
+        report(
+                "head anchor sits 1.882 blocks above the feet, less the pitch swing",
+                head,
+                "above " + above + ", expected " + expected + " at pitch " + pose.pitch + " sneaking " + pose.sneaking);
         report("the client player is recognised", pose.clientPlayer, "clientPlayer false");
 
         GlBackend gl = helios.gl();
