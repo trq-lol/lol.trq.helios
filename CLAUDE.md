@@ -15,6 +15,11 @@ Helios (one per GL context)
   FramebufferPool      sized from SurfaceSize = framebuffer pixels; a resize retires everything
   ShapeBatch           72-byte vertices via StreamBuffer, own VAO + static IBO, indexed triangles, u_mvp from the
                        game's matrices; flushes when full, on a texture change, at end(); one guarded draw each
+  MeshRenderer         3D sinks: QuadSink (pos+ARGB), LineSink (screen-space AA quads), TexturedSink (pos, uv, normal,
+                       1.8.9 two-light lighting); one stream + VAO per format, CPU transforms, flush on sink switch;
+                       MeshRecorder -> StaticMesh (GL_STATIC_DRAW, model matrix as a uniform)
+  PlayerModel          RenderPlayer/RendererLivingEntity/ModelBiped chain as matrices; Attachment HEAD/BODY/BACK;
+                       PlayerPose in, camera-relative world blocks out; MinecraftPlayerPose fills a pose by reflection
   Passes / Effects     screen capture, dual Kawase blur, composite; blurBehind, bloom; PostChain; ScissorStack
   StencilMask          mask drawn with u_alphaCutoff 0.5 (shader discard) into the stencil, then EQUAL / NOTEQUAL
   TextRenderer         MsdfFont (.hfnt: metrics, kerning, deflated RGB atlas) -> layout -> ShapeBatch.glyph (kind 5)
@@ -52,7 +57,7 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
 - **Projection is in the space it was captured in.** Capture in a world hook and Minecraft's matrices are
   camera-relative: positions are world minus `MinecraftWorld.camera()`. View bobbing is part of the camera and is
   included, which is right for overlays.
-- **Prove it in the game.** A rendering change runs `./gradlew :harness:runHarness25 -PlazarusJar=<jar>
+- **Prove it in the game.** A rendering change runs `./gradlew :harness:runHarness25
   -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"` (and with `-Poptifine=<jar>`); every `HELIOS-HARNESS check`
   line must pass and no `[lazarus] GL error` may appear. Look at the screenshots.
 

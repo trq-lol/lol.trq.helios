@@ -61,14 +61,19 @@ locations, `glTexStorage`, `ARB_buffer_storage` (persistent or coherent mapping)
 - Helios draws only from its own buffers: indexed triangles from VBOs and IBOs. Never `GL_QUADS`, `glBegin`/`glEnd`
   or display lists; those go through the emulator, are slower and replace the program.
 - Each mesh or stream has its own vertex array object. `ShapeBatch` owns one with a static index buffer
-  (0-1-2, 2-3-0 per shape); `Passes` owns an empty one.
+  (0-1-2, 2-3-0 per shape); `MeshRenderer` owns one per sink format and each `StaticMesh` its own; `Passes` owns an
+  empty one.
 - Batch aggressively. Uploads are the expensive part on Apple. A frame's shapes are appended into one buffer.
 - Streamed vertex data goes through `StreamBuffer`: a ring of three buffers, each written once per frame with
   `glBufferSubData` and fenced with `glFenceSync` at the frame's end (`Helios.tick()`). A buffer is reused only once
   its fence from three frames ago has signalled. A frame that outgrows its buffer orphans it. `StreamBuffer` is the
   one place to change the upload strategy once Lazarus has measured sub-data, orphaning and unsynchronized mapping on
   Apple.
-- Static meshes (font atlases, later cosmetics) are uploaded once with `GL_STATIC_DRAW`.
+- Static meshes (index buffers, `StaticMesh`) are uploaded once with `GL_STATIC_DRAW`.
+- Mesh sinks transform vertices on the CPU, so meshes with different transforms (every player's attachments) share
+  one draw call. Only a `StaticMesh` takes its transform as a uniform.
+- Lines are screen-facing quads expanded in the vertex shader, their width in framebuffer pixels, with a one-pixel
+  anti-aliased edge and clipping at the near plane. They never use `glLineWidth`.
 - Each Helios batch saves the bound program, vertex array and array buffer, and restores them at the end
   (`StateGuard`). Blend, depth, cull and texture state go through `GlStateManager` so the game's cache stays true.
 - Core forward-compatible rules:
@@ -91,9 +96,10 @@ that touch memory the GPU may still read are expensive, which is why uploads are
 The harness runs only in core mode:
 
 ```
-./gradlew :harness:runHarness25 -PlazarusJar=<lazarus jar> -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"
+./gradlew :harness:runHarness25 -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"
 ```
 
-`-PlazarusJar` points at a Lazarus jar with core mode until a release has it. With debug on, Lazarus prints every
+Core mode ships in Lazarus 0.2.0, the release the harness downloads; `-PlazarusJar=<jar>` runs a local build
+instead. With debug on, Lazarus prints every
 driver GL error with its Java call site as `[lazarus] GL error: ...`; the harness fails the run on any such line.
 CI does the same under Xvfb with Mesa, whose llvmpipe supports core 4.5.

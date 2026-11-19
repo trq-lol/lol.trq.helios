@@ -41,6 +41,11 @@
 - [Easing](helios/src/main/java/lol/trq/helios/anim/Easing.java), [Animation](helios/src/main/java/lol/trq/helios/anim/Animation.java), [Smooth](helios/src/main/java/lol/trq/helios/anim/Smooth.java), [Stopwatch](helios/src/main/java/lol/trq/helios/anim/Stopwatch.java): timing and animation
 - [Maths](helios/src/main/java/lol/trq/helios/math/Maths.java), [Mat4](helios/src/main/java/lol/trq/helios/math/Mat4.java), [Projector](helios/src/main/java/lol/trq/helios/math/Projector.java): numbers, matrices, world to screen
 - [MinecraftWorld](helios/src/main/java/lol/trq/helios/minecraft/MinecraftWorld.java): partial ticks, camera, interpolated entity positions
+- [MeshRenderer](helios/src/main/java/lol/trq/helios/mesh/MeshRenderer.java): 3D quads, AA lines, textured lit quads
+- [QuadSink](helios/src/main/java/lol/trq/helios/mesh/QuadSink.java), [LineSink](helios/src/main/java/lol/trq/helios/mesh/LineSink.java), [TexturedSink](helios/src/main/java/lol/trq/helios/mesh/TexturedSink.java): the vertex sinks
+- [MeshRecorder](helios/src/main/java/lol/trq/helios/mesh/MeshRecorder.java) and [StaticMesh](helios/src/main/java/lol/trq/helios/mesh/StaticMesh.java): meshes uploaded once
+- [PlayerModel](helios/src/main/java/lol/trq/helios/model/PlayerModel.java), [PlayerPose](helios/src/main/java/lol/trq/helios/model/PlayerPose.java), [Attachment](helios/src/main/java/lol/trq/helios/model/Attachment.java): player-model anchors
+- [MinecraftPlayerPose](helios/src/main/java/lol/trq/helios/minecraft/MinecraftPlayerPose.java): a live player's pose for the frame
 - [AtlasBuilder](fontgen/src/main/java/lol/trq/helios/fontgen/AtlasBuilder.java) and [FontGen](fontgen/src/main/java/lol/trq/helios/fontgen/FontGen.java): atlas building and its command line
 - [MsdfGenerator](fontgen/src/main/java/lol/trq/helios/fontgen/MsdfGenerator.java), [EdgeColoring](fontgen/src/main/java/lol/trq/helios/fontgen/EdgeColoring.java), [EdgeSegment](fontgen/src/main/java/lol/trq/helios/fontgen/EdgeSegment.java): the msdfgen port
 - [MinecraftHelios](helios/src/main/java/lol/trq/helios/minecraft/MinecraftHelios.java) and [MinecraftGlStateCache](helios/src/main/java/lol/trq/helios/minecraft/MinecraftGlStateCache.java): the Minecraft hook

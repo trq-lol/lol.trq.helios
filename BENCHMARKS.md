@@ -8,7 +8,7 @@ the GPU cost of real workloads in the game (the harness). Report what you measur
 ```
 ./gradlew :helios:jmh                                  # all CPU benchmarks, GC profiler on
 ./gradlew :helios:jmh -Pjmh.include=textLine           # one benchmark (on Windows, avoid | in the pattern)
-./gradlew :harness:runHarness25 -Pbench -PlazarusJar=<jar> -PjvmArgs="-Dlazarus.gl=core"   # GPU timings in the game
+./gradlew :harness:runHarness25 -Pbench -PjvmArgs="-Dlazarus.gl=core"   # GPU timings in the game
 ```
 
 JMH results land in `helios/build/results/jmh/results.json`. The harness prints `HELIOS-BENCH` lines: each workload

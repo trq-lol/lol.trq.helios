@@ -16,10 +16,19 @@ project uses [Semantic Versioning](https://semver.org/).
 - The stencil mask's alpha cutoff is a shader `discard` (`u_alphaCutoff`) instead of the fixed-function alpha test.
 - `StateGuard` saves the vertex array binding instead of vertex attribute flags; the alpha test, alpha function,
   `GL_TEXTURE_2D` and current colour slots are gone, as are the matching `GlStateCache` and `GlBackend` methods.
-- The harness runs in core mode only, with `-PlazarusJar` for a Lazarus build that has it, the splash screen off,
-  and fails on any `[lazarus] GL error`.
+- The harness runs in core mode only, on the Lazarus 0.2.0 release (`-PlazarusJar` for a local build), with the
+  splash screen off, and fails on any `[lazarus] GL error`.
 
 ### Added
+
+- `MeshRenderer` (`Helios.meshes()`): 3D drawing through `QuadSink` (position and colour), `LineSink` (lines a given
+  number of pixels wide, anti-aliased, clipped at the near plane) and `TexturedSink` (position, texture coordinates,
+  normal and tint, with Minecraft 1.8.9's two-light entity lighting). Sinks transform on the CPU so meshes with
+  different transforms share a draw call; `MeshRecorder` and `StaticMesh` upload a mesh once with `GL_STATIC_DRAW`.
+- `PlayerModel` and `PlayerPose`: the 1.8.9 player transform chain with `Attachment` anchors at the head, body and
+  back, following body and head yaw, pitch, sneaking, the riding limit and armour. `MinecraftPlayerPose` reads a live
+  player's pose for the frame.
+- The world harness checks the head anchor height and draws through every mesh sink and a static mesh.
 
 - `GlBackend` seam with an OpenGL 2.1 + `ARB_framebuffer_object` backend on LWJGL 3.
 - `StateGuard`: saves each GL state slot on first touch and restores newest first; cached state goes through a

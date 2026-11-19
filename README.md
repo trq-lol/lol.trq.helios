@@ -9,9 +9,9 @@ Status: early development (milestone H3.5), nothing released yet. See [CHANGELOG
 
 - Minecraft 1.8.9 with Forge 11.15.1.2318, on Java 17 or newer, running on LWJGL 3 through
   [lol.trq.lazarus](https://github.com/trq-lol/lol.trq.lazarus).
-- Lazarus core mode (`-Dlazarus.gl=core`): an OpenGL 4.1 core profile context, on Windows, Linux and macOS. Every
-  shader is `#version 410 core`; there is no legacy-context path. Helios checks this at start-up and says how to fix
-  it. See [docs/opengl.md](docs/opengl.md) for the dialect and the drawing rules.
+- Lazarus 0.2.0 or newer in core mode (`-Dlazarus.gl=core`): an OpenGL 4.1 core profile context, on Windows, Linux
+  and macOS. Every shader is `#version 410 core`; there is no legacy-context path. Helios checks this at start-up
+  and says how to fix it. See [docs/opengl.md](docs/opengl.md) for the dialect and the drawing rules.
 
 ## What is here
 
@@ -23,13 +23,15 @@ Status: early development (milestone H3.5), nothing released yet. See [CHANGELOG
 | `shader` | Loader for GLSL 4.10 core with `#include`, defines, `file:line` errors, a uniform location cache and reload |
 | `fbo` | `FramebufferPool`, sized in framebuffer pixels so effects stay sharp on high-DPI screens |
 | `batch` | `ShapeBatch`: rounded rects, outlines, circles, arcs, lines, polylines, drop shadows, inner glow and images, many per draw call, all anti-aliased over exactly one pixel; `Paint` for solid, corner, linear and radial gradients |
+| `mesh` | `MeshRenderer`: 3D quads, anti-aliased lines and textured quads with Minecraft's entity lighting, streamed through `QuadSink`, `LineSink` and `TexturedSink` with CPU transforms so many meshes share a draw call; `MeshRecorder` and `StaticMesh` for meshes uploaded once |
+| `model` | `PlayerModel`: the 1.8.9 player renderer's transform chain as matrix maths, with `Attachment` anchors (head, body, back) that follow yaw, pitch, sneaking, riding and armour; `PlayerPose` holds one frame's inputs |
 | `effect` | Dual Kawase blur, blur behind a shape (frosted glass), bloom, post-processing chains |
 | `text` | MSDF text: `MsdfFont`, `TextRenderer` (kerning, `§` colour and format codes, classic and soft shadows), `TextStyle`; Inter is bundled |
 | `sdf` | The distance functions of the shape shader, in Java, for tests |
 | `color` | `Colors`: packed ARGB maths, HSB and HSL, sRGB, linear-light and hue interpolation, rainbow and ping-pong over time, hex parsing, readable text colour |
 | `anim` | `Easing` curves, `Animation` (reversible mid-flight), `Smooth` (frame-rate independent damping), `Stopwatch` |
 | `math` | `Maths` (clamp, remap, angles, rounding, Gaussian kernels), `Mat4` (column-major, allocation-free), `Projector` (world to screen, 2D boxes for ESP) |
-| `minecraft` | The only package that knows Minecraft: `GlStateManager` routing, the window size, stencil, and `MinecraftWorld` (partial ticks, camera, interpolated entity positions and boxes), by reflection |
+| `minecraft` | The only package that knows Minecraft: `GlStateManager` routing, the window size, stencil, `MinecraftWorld` (partial ticks, camera, interpolated entity positions and boxes) and `MinecraftPlayerPose` (a player's pose for the frame), by reflection |
 
 No Mixin. Minecraft is reached only from `lol.trq.helios.minecraft`, so the rest of Helios builds and tests without
 the game.
@@ -107,6 +109,37 @@ if (projector.projectBox(box[0], box[1], box[2], box[3], box[4], box[5], rect)) 
 }
 ```
 
+### 3D meshes and player attachments
+
+```java
+// In a world render hook (RenderWorldLastEvent), where vertices are world coordinates minus the camera:
+MinecraftWorld world = new MinecraftWorld(loader);                 // once
+MinecraftPlayerPose poses = new MinecraftPlayerPose(loader, world); // once
+PlayerPose pose = new PlayerPose();
+float[] m = new float[16];
+
+float partial = world.partialTicks();
+double[] camera = world.camera(new double[3]);
+MeshRenderer meshes = helios.meshes();
+for (Object player : players) {
+    poses.read(player, partial, camera, pose);
+    // Model pixels around the anchor: x toward the player's left, y down, z toward the back.
+    meshes.texture(capeTexture).textured().transform(PlayerModel.anchor(pose, Attachment.BACK, m))
+            .vertex(-5, 0, 0, 0, 0, 0, 0, 1, -1).vertex(5, 0, 0, 1, 0, 0, 0, 1, -1)
+            .vertex(5, 16, 0, 1, 1, 0, 0, 1, -1).vertex(-5, 16, 0, 0, 1, 0, 0, 1, -1);
+}
+meshes.lines().transform(null).line(0, 0, 0, 0, 2, 0, 0xFF40FF40, 2); // 2 px wide at any distance
+meshes.flush(); // every player's attachment above went out in one draw call
+
+// A mesh that never changes is recorded once and drawn with a GPU transform:
+MeshRecorder rec = new MeshRecorder(MeshFormat.TEXTURED);
+// rec.textured().vertex(...) ...
+StaticMesh hat = rec.build(meshes);
+meshes.texture(hatTexture).draw(hat, PlayerModel.anchor(pose, Attachment.HEAD, m));
+```
+
+Helios provides the sinks and the anchors only; what is drawn at them is up to the caller.
+
 ### Stencil clipping
 
 ```java
@@ -137,14 +170,13 @@ try (StateGuard g = helios.guard()) {
 ```
 ./gradlew spotlessCheck build        # unit tests, no GL needed; also builds the font atlas
 ./gradlew :helios:jmh                # CPU benchmarks, see BENCHMARKS.md
-./gradlew :harness:runHarness25 -PlazarusJar=<jar> -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"
-./gradlew :harness:runHarness21 -PlazarusJar=<jar> -PjvmArgs="..." -Poptifine=<path to an OptiFine 1.8.9 jar>
+./gradlew :harness:runHarness25 -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"
+./gradlew :harness:runHarness21 -PjvmArgs="..." -Poptifine=<path to an OptiFine 1.8.9 jar>
 ```
 
 The harness downloads Minecraft 1.8.9 and Forge into `.harness-cache/`, boots the game on LWJGL 3 in Lazarus core
-mode with sound muted and the splash screen off, and loads a test mod. Core mode is not in a Lazarus release yet, so
-`-PlazarusJar` points at a jar built from its `feat/core-gl` branch; without it the harness uses the checksummed
-release jar. With `-Dlazarus.gl.debug=true` any `[lazarus] GL error` line fails the run. On the main menu the mod:
+mode with sound muted and the splash screen off, and loads a test mod. It uses the checksummed Lazarus release jar;
+`-PlazarusJar=<jar>` runs a local Lazarus build instead. With `-Dlazarus.gl.debug=true` any `[lazarus] GL error` line fails the run. On the main menu the mod:
 
 - draws every primitive and compares each pixel around it with a software model of the shader (within 3/255);
 - checks that many shapes go out in one draw call;
@@ -159,10 +191,11 @@ release jar. With `-Dlazarus.gl.debug=true` any `[lazarus] GL error` line fails 
 
 With `-Pbench` it also prints GPU timings; see [BENCHMARKS.md](BENCHMARKS.md). With `-Pworld` it then creates a
 world and checks projection with the real camera matrices: a point ahead of the player's eyes must project to the
-exact screen centre, and the player's interpolated position must sit on the camera. The harness turns view bobbing
+exact screen centre, and the player's interpolated position must sit on the camera. It reads the player's pose,
+checks the head anchor sits 1.882 blocks above the feet, and draws through every mesh sink and a static mesh at the
+anchors. The harness turns view bobbing
 off for this. It opens a game window while it
-runs. OptiFine cannot be redistributed: point `-Poptifine` at a local copy. CI builds Lazarus from that branch and
-runs the harness in core mode on Linux under a virtual display with Mesa's software OpenGL (core 4.5).
+runs. OptiFine cannot be redistributed: point `-Poptifine` at a local copy. CI runs the harness in core mode on Linux under a virtual display with Mesa's software OpenGL (core 4.5).
 
 ## For AI agents
 
