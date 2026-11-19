@@ -41,7 +41,7 @@ repositories {
     }
 }
 dependencies {
-    implementation 'lol.trq:lol.trq.helios:0.1.1'
+    implementation 'lol.trq:lol.trq.helios:0.1.2'
 }
 ```
 
@@ -140,7 +140,8 @@ for (Object player : players) {
 meshes.flush(); // every player above in one draw call
 ```
 
-Meshes that never change are recorded once with `MeshRecorder` and drawn from a `StaticMesh`. Helios provides the
+`QuadSink.triangle` draws fans, strips and cones one triangle at a time, and `LineSink.strip` draws a path or a
+loop. Meshes that never change are recorded once with `MeshRecorder` and drawn from a `StaticMesh`. Helios provides the
 sinks and the anchors; what is drawn at them is up to the caller.
 
 ### Clipping and your own GL work

@@ -5,6 +5,13 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-19
+
+### Added
+
+- `QuadSink.triangle`: one triangle, for fans, strips and cones drawn through the quad sink.
+- `LineSink.strip`: connected segments through a list of points, open or closed.
+
 ## [0.1.1] - 2026-11-19
 
 ### Added
@@ -71,6 +78,7 @@ First release. Requires Minecraft Forge 1.8.9 on LWJGL 3 through lol.trq.lazarus
   restoration, and any `[lazarus] GL error` fails the run. `-Pworld` checks projection, player anchors and mesh
   drawing in a singleplayer world. Runs in CI under Xvfb with Mesa.
 
-[Unreleased]: https://github.com/trq-lol/lol.trq.helios/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/trq-lol/lol.trq.helios/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.2
 [0.1.1]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.1
 [0.1.0]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.0
