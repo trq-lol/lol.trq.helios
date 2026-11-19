@@ -77,6 +77,8 @@ public interface GlBackend {
     int TRIANGLES = 0x0004;
     /** {@code GL_FLOAT}. */
     int FLOAT = 0x1406;
+    /** {@code GL_BYTE}. */
+    int BYTE = 0x1400;
     /** {@code GL_UNSIGNED_BYTE}. */
     int UNSIGNED_BYTE = 0x1401;
     /** {@code GL_UNSIGNED_SHORT}. */

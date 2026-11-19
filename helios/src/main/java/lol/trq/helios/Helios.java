@@ -8,6 +8,7 @@ import lol.trq.helios.effect.PostChain;
 import lol.trq.helios.fbo.FramebufferPool;
 import lol.trq.helios.fbo.SurfaceSize;
 import lol.trq.helios.gl.GlBackend;
+import lol.trq.helios.mesh.MeshRenderer;
 import lol.trq.helios.shader.ShaderHotReload;
 import lol.trq.helios.shader.ShaderLoader;
 import lol.trq.helios.shader.SourceResolver;
@@ -41,6 +42,7 @@ public final class Helios implements AutoCloseable {
     private final Passes passes;
     private final Effects effects;
     private final ScissorStack scissor;
+    private final MeshRenderer meshes;
 
     private final TextRenderer text;
     private final StencilMask stencil;
@@ -65,6 +67,7 @@ public final class Helios implements AutoCloseable {
         this.scissor = new ScissorStack(gl, cache, surface);
         this.text = new TextRenderer(gl);
         this.stencil = new StencilMask(gl, cache, shapes);
+        this.meshes = new MeshRenderer(gl, cache, shaders, BATCH_CAPACITY);
     }
 
     /**
@@ -111,7 +114,7 @@ public final class Helios implements AutoCloseable {
     }
 
     /**
-     * Per-frame housekeeping: rotates the streamed vertex buffers and polls shader hot reload when it is on. Call it
+     * Per-frame housekeeping: rotates the streamed vertex buffers of the shapes and meshes and polls shader hot reload when it is on. Call it
      * once per frame, after the frame's Helios drawing.
      *
      * @return what hot reload did, or a result with nothing reloaded
@@ -119,6 +122,7 @@ public final class Helios implements AutoCloseable {
     public ShaderHotReload.Result tick() {
         shapes.endFrame();
         effectShapes.endFrame();
+        meshes.endFrame();
         return hotReload == null ? new ShaderHotReload.Result(false, java.util.List.of()) : hotReload.poll();
     }
 
@@ -156,6 +160,15 @@ public final class Helios implements AutoCloseable {
      */
     public ShaderLoader shaders() {
         return shaders;
+    }
+
+    /**
+     * Returns the 3D mesh renderer: coloured quads, anti-aliased lines and textured, lit quads.
+     *
+     * @return the renderer
+     */
+    public MeshRenderer meshes() {
+        return meshes;
     }
 
     /**
@@ -256,6 +269,7 @@ public final class Helios implements AutoCloseable {
     @Override
     public void close() {
         shapes.close();
+        meshes.close();
         if (defaultFont != null) {
             defaultFont.close();
         }

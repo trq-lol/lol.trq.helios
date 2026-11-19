@@ -6,6 +6,7 @@ import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import lol.trq.helios.gl.GlBackend;
+import lol.trq.helios.gl.QuadIndices;
 import lol.trq.helios.gl.StreamBuffer;
 import lol.trq.helios.math.Mat4;
 import lol.trq.helios.sdf.Sdf;
@@ -82,7 +83,7 @@ public final class ShapeBatch implements AutoCloseable {
         this.program = shaders.load("shape.vsh", "shape.fsh", Map.of());
         this.vertices = ByteBuffer.allocateDirect(capacity * 4 * STRIDE).order(ByteOrder.nativeOrder());
         this.stream = new StreamBuffer(gl, (long) Math.max(capacity, 1024) * 4 * STRIDE * 4);
-        this.indexType = capacity * 4 <= 0x10000 ? GlBackend.UNSIGNED_SHORT : GlBackend.UNSIGNED_INT;
+        this.indexType = QuadIndices.type(capacity);
     }
 
     /**
@@ -675,20 +676,7 @@ public final class ShapeBatch implements AutoCloseable {
     }
 
     static ByteBuffer quadIndices(int quads, int type) {
-        boolean shorts = type == GlBackend.UNSIGNED_SHORT;
-        ByteBuffer b = ByteBuffer.allocateDirect(quads * 6 * (shorts ? 2 : 4)).order(ByteOrder.nativeOrder());
-        for (int q = 0; q < quads; q++) {
-            int v = q * 4;
-            int[] idx = {v, v + 1, v + 2, v + 2, v + 3, v};
-            for (int i : idx) {
-                if (shorts) {
-                    b.putShort((short) i);
-                } else {
-                    b.putInt(i);
-                }
-            }
-        }
-        return b.flip();
+        return QuadIndices.create(quads, type);
     }
 
     /**
