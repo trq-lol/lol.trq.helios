@@ -11,7 +11,7 @@ fallback. macOS stops at 4.1, so nothing newer is used anywhere.
 `GL_CONTEXT_PROFILE_MASK` has the core bit and the version is 4.1 or higher, and that Lazarus's emulator is loaded.
 If not, it throws:
 
-```
+```text
 Helios requires an OpenGL 4.1 core profile context (got <version>). Start the game through Lazarus with -Dlazarus.gl=core.
 ```
 
@@ -95,7 +95,7 @@ that touch memory the GPU may still read are expensive, which is why uploads are
 
 The harness runs only in core mode:
 
-```
+```sh
 ./gradlew :harness:runHarness25 -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"
 ```
 

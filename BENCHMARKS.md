@@ -5,7 +5,7 @@ the GPU cost of real workloads in the game (the harness). Report what you measur
 
 ## How to run
 
-```
+```sh
 ./gradlew :helios:jmh                                  # all CPU benchmarks, GC profiler on
 ./gradlew :helios:jmh -Pjmh.include=textLine           # one benchmark (on Windows, avoid | in the pattern)
 ./gradlew :harness:runHarness25 -Pbench -PjvmArgs="-Dlazarus.gl=core"   # GPU timings in the game
