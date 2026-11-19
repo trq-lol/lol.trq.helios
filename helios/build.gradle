@@ -1,6 +1,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'me.champeau.jmh' version '0.7.4'
 }
 
 base.archivesName = 'lol.trq.helios'
@@ -45,6 +46,28 @@ test {
     useJUnitPlatform()
 }
 
+// CPU benchmarks: ./gradlew :helios:jmh [-Pjmh.include=<regex>]. GPU timings come from the harness (-Pbench).
+jmh {
+    jmhVersion = '1.37'
+    fork = 1
+    warmupIterations = 3
+    warmup = '1s'
+    iterations = 5
+    timeOnIteration = '1s'
+    benchmarkMode = ['avgt']
+    timeUnit = 'ns'
+    profilers = ['gc']
+    failOnError = true
+    resultFormat = 'JSON'
+    if (project.hasProperty('jmh.include')) {
+        includes = [project.property('jmh.include')]
+    }
+}
+
+dependencies {
+    jmhImplementation "org.lwjgl:lwjgl:${lwjglVersion}"
+    jmhImplementation "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
+}
 
 tasks.named('jar') {
     manifest {
