@@ -6,6 +6,7 @@ import java.lang.reflect.Field;
 import lol.trq.helios.Helios;
 import lol.trq.helios.minecraft.MinecraftHelios;
 import net.minecraftforge.client.event.GuiScreenEvent;
+import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
@@ -26,11 +27,17 @@ public class HarnessMod {
     private static final String MAIN_MENU = "net.minecraft.client.gui.GuiMainMenu";
     private static final int TICKS = Integer.getInteger("helios.harness.ticks", 60);
     private static final boolean STAY = Boolean.getBoolean("helios.harness.stay");
+    private static final boolean WORLD = Boolean.getBoolean("helios.harness.world");
+    private static final int WORLD_TICKS = 60;
 
     private Helios helios;
     private int menuTicks;
     private boolean checkRequested;
     private Integer exitCode;
+    private Integer menuResult;
+    private boolean worldLaunched;
+    private int worldTicks;
+    private boolean worldCheckRequested;
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
@@ -47,6 +54,10 @@ public class HarnessMod {
             if (!STAY) {
                 FMLCommonHandler.instance().exitJava(exitCode, false);
             }
+            return;
+        }
+        if (menuResult != null) {
+            tickWorld();
             return;
         }
         if (helios != null && ++menuTicks == TICKS) {
@@ -76,12 +87,51 @@ public class HarnessMod {
             if (checkRequested && exitCode == null) {
                 checkRequested = false;
                 File out = new File(gameDir(), "helios");
-                exitCode = new Checks(helios, frame, out).run() ? 0 : 1;
+                int result = new Checks(helios, frame, out).run() ? 0 : 1;
+                if (WORLD && result == 0) {
+                    menuResult = result;
+                } else {
+                    exitCode = result;
+                }
             } else {
                 Checks.drawScene(helios, frame);
             }
         } catch (ReflectiveOperationException | RuntimeException e) {
             System.out.println("HELIOS-HARNESS FAIL exception " + e);
+            e.printStackTrace(System.out);
+            exitCode = 1;
+        }
+    }
+
+    private void tickWorld() {
+        try {
+            if (!worldLaunched) {
+                worldLaunched = true;
+                System.out.println("HELIOS-HARNESS world creating");
+                WorldCheck.launchWorld();
+            } else if (WorldCheck.player() != null && ++worldTicks == WORLD_TICKS) {
+                worldCheckRequested = true;
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            System.out.println("HELIOS-HARNESS FAIL world exception " + e);
+            e.printStackTrace(System.out);
+            exitCode = 1;
+        }
+    }
+
+    @SubscribeEvent
+    public void onRenderWorldLast(RenderWorldLastEvent event) {
+        if (!worldCheckRequested || exitCode != null) {
+            return;
+        }
+        worldCheckRequested = false;
+        try {
+            boolean ok = WorldCheck.run(helios) && !WorldCheck.anyFailed();
+            System.out.println(
+                    "HELIOS-HARNESS " + (ok ? "OK" : "FAIL") + " world java=" + System.getProperty("java.version"));
+            exitCode = ok ? menuResult : 1;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            System.out.println("HELIOS-HARNESS FAIL world exception " + e);
             e.printStackTrace(System.out);
             exitCode = 1;
         }

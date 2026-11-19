@@ -55,6 +55,7 @@ def harnessJvmArgs = {
     if (project.hasProperty('updateReferences')) args << '-Dhelios.harness.updateReferences=true'
     if (project.hasProperty('requireReferences')) args << '-Dhelios.harness.requireReferences=true'
     if (project.hasProperty('bench')) args << '-Dhelios.harness.bench=true'
+    if (project.hasProperty('world')) args << '-Dhelios.harness.world=true'
     if (project.hasProperty('jvmArgs')) args << project.property('jvmArgs')
     args.join(' ')
 }

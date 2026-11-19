@@ -369,10 +369,10 @@ public final class DevLaunch {
     }
 
     private static void writeMutedOptions(Path gameDir) throws IOException {
+        // Rewritten every launch: muted, framebuffers on, and no view bobbing so the camera looks exactly where
+        // the player faces (the world projection check depends on it).
         Path options = gameDir.resolve("options.txt");
-        if (!Files.exists(options)) {
-            Files.writeString(options, "soundCategory_master:0.0\nmusicVolume:0.0\nfboEnable:true\n");
-        }
+        Files.writeString(options, "soundCategory_master:0.0\nmusicVolume:0.0\nfboEnable:true\nbobView:false\n");
     }
 
     private static JsonObject json(Path file) throws IOException {

@@ -16,7 +16,9 @@ import lol.trq.helios.batch.Paint;
 import lol.trq.helios.batch.ShapeBatch;
 import lol.trq.helios.effect.Passes;
 import lol.trq.helios.fbo.Framebuffer;
+import lol.trq.helios.math.Projector;
 import lol.trq.helios.minecraft.MinecraftGlStateCache;
+import lol.trq.helios.minecraft.MinecraftWorld;
 import lol.trq.helios.shader.ShaderLoader;
 import lol.trq.helios.shader.ShaderProgram;
 import lol.trq.helios.shader.SourceResolver;
@@ -339,6 +341,8 @@ final class Checks {
         expect("state unchanged by offscreen drawing", before.equals(afterOffscreen), before + " -> " + afterOffscreen);
 
         checkCacheCoherence();
+        checkProjection();
+        checkWorldHelpers();
         screenshots();
         if (Boolean.getBoolean("helios.harness.bench")) {
             GpuBench.run(helios, frame);
@@ -685,6 +689,45 @@ final class Checks {
         boolean back = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D) == bound;
         GL11.glDeleteTextures(probe);
         expect("GlStateManager cache coherent for the bound texture", took && back, "took=" + took + " back=" + back);
+    }
+
+    /** Projects GUI points through the game's real GUI matrices: each must land where it was drawn. */
+    private void checkProjection() {
+        Projector projector = new Projector().capture(helios.gl(), frame.pixel());
+        float[] out = new float[3];
+        boolean ok = true;
+        float worst = 0;
+        for (float[] pt : new float[][] {{0, 0}, {100, 50}, {frame.guiWidth(), frame.guiHeight()}, {13.5f, 200.25f}}) {
+            if (!projector.project(pt[0], pt[1], 0, out)) {
+                ok = false;
+                continue;
+            }
+            worst = Math.max(worst, Math.max(Math.abs(out[0] - pt[0]), Math.abs(out[1] - pt[1])));
+        }
+        expect("GUI points project onto themselves", ok && worst < 0.01f, "worst " + worst);
+        float[] box = new float[4];
+        boolean visible = projector.projectBox(10, 20, 0, 60, 40, 0, box);
+        expect(
+                "a GUI box projects to its own bounds",
+                visible
+                        && Math.abs(box[0] - 10) < 0.01f
+                        && Math.abs(box[1] - 20) < 0.01f
+                        && Math.abs(box[2] - 60) < 0.01f
+                        && Math.abs(box[3] - 40) < 0.01f,
+                Arrays.toString(box));
+    }
+
+    /** Resolves every world helper member against the running game; positions need a world, names do not. */
+    private void checkWorldHelpers() {
+        try {
+            MinecraftWorld world = new MinecraftWorld(Checks.class.getClassLoader());
+            float pt = world.partialTicks();
+            double[] cam = world.camera(new double[3]);
+            expect("partial tick in [0, 1)", pt >= 0 && pt < 1, String.valueOf(pt));
+            expect("camera position readable", !Double.isNaN(cam[0]), Arrays.toString(cam));
+        } catch (RuntimeException e) {
+            expect("world helpers resolve", false, e + (e.getCause() == null ? "" : " / " + e.getCause()));
+        }
     }
 
     private static void set(GlStateCache gsm, int k, boolean on) {
