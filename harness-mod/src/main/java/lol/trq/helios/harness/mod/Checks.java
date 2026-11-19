@@ -22,6 +22,8 @@ import lol.trq.helios.shader.ShaderProgram;
 import lol.trq.helios.shader.SourceResolver;
 import lol.trq.helios.state.GlStateCache;
 import lol.trq.helios.state.StateGuard;
+import lol.trq.helios.text.MsdfFont;
+import lol.trq.helios.text.TextStyle;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
@@ -47,7 +49,14 @@ final class Checks {
     /** Bloom region: dark panel, glowing shapes. */
     static final float[] BLOOM_REGION = {290, 96, 135, 100};
 
+    /** Text region: dark panel with several sizes and styles. */
+    static final float[] TEXT_REGION = {146, 70, 140, 124};
+
+    /** Stencil region: a gradient and text clipped to a pill. */
+    static final float[] STENCIL_REGION = {2, 200, 140, 36};
+
     private static ShaderProgram invert;
+    static boolean stencilOnScreen;
 
     private final Helios helios;
     private final HarnessMod.Frame frame;
@@ -149,6 +158,127 @@ final class Checks {
         b.end();
         drawBlurScene(helios, frame);
         drawBloomScene(helios, frame);
+        drawTextScene(helios, frame);
+        drawStencilScene(helios, frame);
+        drawGlyph(helios, frame);
+    }
+
+    static void drawTextScene(Helios helios, HarnessMod.Frame frame) {
+        float[] r = TEXT_REGION;
+        MsdfFont font = helios.defaultFont();
+        ShapeBatch b = helios.shapes().begin(frame.pixel());
+        b.rect(r[0], r[1], r[2], r[3], 0, 0xFF14161C);
+        float y = r[1] + 4;
+        var text = helios.text();
+        text.draw(
+                b,
+                "Helios 6px: the quick brown fox",
+                r[0] + 4,
+                y,
+                TextStyle.builder(font).size(6).build());
+        y += 8;
+        text.draw(
+                b,
+                "9px §cred §agreen §9blue §rwhite",
+                r[0] + 4,
+                y,
+                TextStyle.builder(font).size(9).build());
+        y += 11;
+        text.draw(
+                b,
+                "§lBold §oitalic§r §nunder§r §mstrike",
+                r[0] + 4,
+                y,
+                TextStyle.builder(font).size(9).shadow(TextStyle.Shadow.CLASSIC).build());
+        y += 12;
+        text.draw(
+                b,
+                "Soft shadow AV Wa",
+                r[0] + 4,
+                y,
+                TextStyle.builder(font).size(14).shadow(TextStyle.Shadow.SOFT).build());
+        y += 18;
+        text.draw(
+                b,
+                "Big 32",
+                r[0] + 4,
+                y,
+                TextStyle.builder(font).size(32).color(0xFFFFC857).build());
+        y += 38;
+        text.draw(
+                b,
+                "Semibold, spaced",
+                r[0] + 4,
+                y,
+                TextStyle.builder(font)
+                        .size(11)
+                        .weight(0.02f)
+                        .letterSpacing(0.05f)
+                        .color(0xFF8BE9FD)
+                        .build());
+        b.end();
+    }
+
+    static void drawStencilScene(Helios helios, HarnessMod.Frame frame) {
+        float[] r = STENCIL_REGION;
+        float p = frame.pixel();
+        helios.shapes().begin(p).rect(r[0], r[1], r[2], r[3], 0, 0xFF0B0C10).end();
+        if (!stencilOnScreen) {
+            return;
+        }
+        helios.stencil()
+                .clip(
+                        () -> helios.shapes()
+                                .begin(p)
+                                .rect(r[0] + 6, r[1] + 4, r[2] - 12, r[3] - 8, 14, Paint.solid(-1))
+                                .end(),
+                        true,
+                        () -> {
+                            ShapeBatch b = helios.shapes().begin(p);
+                            b.rect(r[0], r[1], r[2], r[3], 0, Paint.linear(30, 0xFFFF4D8D, 0xFF4D9DFF));
+                            helios.text()
+                                    .draw(
+                                            b,
+                                            "Clipped by a stencil mask",
+                                            r[0] - 4,
+                                            r[1] + 10,
+                                            TextStyle.builder(helios.defaultFont())
+                                                    .size(14)
+                                                    .build());
+                            b.end();
+                        });
+    }
+
+    /** One large glyph, drawn straight through the batch so the harness can model every pixel. */
+    static final float[] GLYPH = {398, 36, 26};
+
+    static void drawGlyph(Helios helios, HarnessMod.Frame frame) {
+        MsdfFont font = helios.defaultFont();
+        MsdfFont.Glyph g = font.glyph('g');
+        float size = GLYPH[2];
+        float x = GLYPH[0];
+        float base = GLYPH[1];
+        helios.shapes()
+                .begin(frame.pixel())
+                .glyph(
+                        font.texture(helios.gl()),
+                        x + g.left() * size,
+                        base + g.top() * size,
+                        x + g.right() * size,
+                        base + g.bottom() * size,
+                        0,
+                        0,
+                        g.u0(),
+                        g.v0(),
+                        g.u1(),
+                        g.v1(),
+                        0xFFFFFFFF,
+                        font.pxRange(),
+                        0,
+                        0,
+                        font.atlasWidth(),
+                        font.atlasHeight())
+                .end();
     }
 
     private static void drawBlurScene(Helios helios, HarnessMod.Frame frame) {
@@ -194,6 +324,13 @@ final class Checks {
         compareReference("blur", BLUR_REGION);
         drawBloomScene(helios, frame);
         compareReference("bloom", BLOOM_REGION);
+        drawTextScene(helios, frame);
+        compareReference("text", TEXT_REGION);
+        drawStencilScene(helios, frame);
+        if (stencilOnScreen) {
+            compareReference("stencil", STENCIL_REGION);
+        }
+        checkGlyph();
         String afterOnScreen = State.capture().toString();
         expect("state unchanged by on-screen drawing", before.equals(afterOnScreen), before + " -> " + afterOnScreen);
 
@@ -203,6 +340,9 @@ final class Checks {
 
         checkCacheCoherence();
         screenshots();
+        if (Boolean.getBoolean("helios.harness.bench")) {
+            GpuBench.run(helios, frame);
+        }
 
         boolean ok = failures.isEmpty();
         System.out.println("HELIOS-HARNESS " + (ok ? "OK" : "FAIL") + " java=" + System.getProperty("java.version")
@@ -265,6 +405,89 @@ final class Checks {
                 + (box[2] * box[3]) + " partial=" + partial + " outsideChanged=" + outsideChanged + " worst " + worst);
         expect(m.name() + " matches the model within " + TOLERANCE + "/255", maxErr <= TOLERANCE, "max " + maxErr);
         expect(m.name() + " draws nothing outside its coverage", outsideChanged == 0, outsideChanged + " channels");
+    }
+
+    /** Compares one glyph's pixels with a software model: bilinear atlas sample, median, screen pixel range. */
+    private void checkGlyph() {
+        MsdfFont font = helios.defaultFont();
+        MsdfFont.Glyph g = font.glyph('g');
+        float size = GLYPH[2];
+        float x0 = GLYPH[0] + g.left() * size;
+        float y0 = GLYPH[1] + g.top() * size;
+        float x1 = GLYPH[0] + g.right() * size;
+        float y1 = GLYPH[1] + g.bottom() * size;
+        int[] box = pixelBox(x0, y0, x1, y1);
+        ByteBuffer under = read(box);
+        drawGlyph(helios, frame);
+        ByteBuffer over = read(box);
+        float p = frame.pixel();
+        ByteBuffer atlas = font.atlasPixels();
+        int aw = font.atlasWidth();
+        int ah = font.atlasHeight();
+        float texelsX = (g.u1() - g.u0()) * aw;
+        float texelsY = (g.v1() - g.v0()) * ah;
+        float spr = Math.max(0.5f * font.pxRange() * ((x1 - x0) / p / texelsX + (y1 - y0) / p / texelsY), 1f);
+        int maxErr = 0;
+        int partial = 0;
+        int outsideChanged = 0;
+        String worst = "";
+        for (int row = 0; row < box[3]; row++) {
+            for (int col = 0; col < box[2]; col++) {
+                float gx = (box[0] + col + 0.5f) * p;
+                float gy = (frame.fbHeight() - (box[1] + row) - 0.5f) * p;
+                float a = 0;
+                if (gx >= x0 && gx < x1 && gy >= y0 && gy < y1) {
+                    float u = g.u0() + (gx - x0) / (x1 - x0) * (g.u1() - g.u0());
+                    float v = g.v0() + (gy - y0) / (y1 - y0) * (g.v1() - g.v0());
+                    float sd = medianSample(atlas, aw, ah, u * aw - 0.5f, v * ah - 0.5f) - 0.5f;
+                    a = Math.min(Math.max(spr * sd + 0.5f, 0f), 1f);
+                }
+                int i = (row * box[2] + col) * 4;
+                for (int ch = 0; ch < 3; ch++) {
+                    int bg = under.get(i + ch) & 0xFF;
+                    int got = over.get(i + ch) & 0xFF;
+                    float expected = bg * (1 - a) + 255f * a;
+                    int err = Math.round(Math.abs(got - expected));
+                    if (err > maxErr) {
+                        maxErr = err;
+                        worst = String.format("at (%.2f, %.2f) a=%.3f got=%d want=%.1f", gx, gy, a, got, expected);
+                    }
+                    if (a == 0f && got != bg) {
+                        outsideChanged++;
+                    }
+                }
+                if (a > 0f && a < 1f) {
+                    partial++;
+                }
+            }
+        }
+        System.out.println("HELIOS-HARNESS glyph g maxError=" + maxErr + "/255 partial=" + partial + " outsideChanged="
+                + outsideChanged + " screenPxRange=" + spr + " worst " + worst);
+        expect("glyph matches the MSDF model within " + GLYPH_TOLERANCE + "/255", maxErr <= GLYPH_TOLERANCE, worst);
+        expect("glyph draws nothing outside its quad", outsideChanged == 0, outsideChanged + " channels");
+    }
+
+    /** GPU bilinear filtering uses fixed-point weights, so the glyph model gets a little more room than shapes. */
+    private static final int GLYPH_TOLERANCE = 8;
+
+    private static float medianSample(ByteBuffer atlas, int w, int h, float fx, float fy) {
+        int x0 = (int) Math.floor(fx);
+        int y0 = (int) Math.floor(fy);
+        float tx = fx - x0;
+        float ty = fy - y0;
+        float[] c = new float[3];
+        for (int ch = 0; ch < 3; ch++) {
+            float a = texel(atlas, w, h, x0, y0, ch) * (1 - tx) + texel(atlas, w, h, x0 + 1, y0, ch) * tx;
+            float b = texel(atlas, w, h, x0, y0 + 1, ch) * (1 - tx) + texel(atlas, w, h, x0 + 1, y0 + 1, ch) * tx;
+            c[ch] = a * (1 - ty) + b * ty;
+        }
+        return Math.max(Math.min(c[0], c[1]), Math.min(Math.max(c[0], c[1]), c[2]));
+    }
+
+    private static float texel(ByteBuffer atlas, int w, int h, int x, int y, int ch) {
+        x = Math.max(0, Math.min(w - 1, x));
+        y = Math.max(0, Math.min(h - 1, y));
+        return (atlas.get((y * w + x) * 3 + ch) & 0xFF) / 255f;
     }
 
     private void compareReference(String name, float[] region) {
@@ -374,6 +597,39 @@ final class Checks {
             expect("scissor test restored", !GL11.glIsEnabled(GL11.GL_SCISSOR_TEST), "still enabled");
         }
         helios.framebuffers().release(fb);
+
+        Framebuffer sfb = helios.framebuffers().acquireScreen(1, true);
+        try (StateGuard g = helios.guard()) {
+            // A fresh depth-stencil buffer holds garbage depth, and GUI drawing keeps the depth test on.
+            g.framebuffer(sfb.id()).viewport(0, 0, sfb.width(), sfb.height()).depthTest(false);
+            for (boolean inside : new boolean[] {true, false}) {
+                helios.gl().clearColorTransparent();
+                helios.stencil()
+                        .clip(
+                                () -> helios.shapes()
+                                        .begin(p)
+                                        .circle(30, 30, 15, Paint.solid(-1))
+                                        .end(),
+                                inside,
+                                () -> helios.shapes()
+                                        .begin(p)
+                                        .rect(0, 0, 60, 60, 0, 0xFFFFFFFF)
+                                        .end());
+                int[] centre = pixel(30, 30);
+                int[] corner = pixel(17, 17);
+                String which = inside ? "inside" : "outside";
+                expect(
+                        "stencil " + which + ": centre",
+                        inside ? centre[3] == 255 : centre[3] == 0,
+                        Arrays.toString(centre));
+                expect(
+                        "stencil " + which + ": corner",
+                        inside ? corner[3] == 0 : corner[3] == 255,
+                        Arrays.toString(corner));
+            }
+            expect("stencil test restored", !GL11.glIsEnabled(GL11.GL_STENCIL_TEST), "still enabled");
+        }
+        helios.framebuffers().release(sfb);
         expect(
                 "no framebuffer left lent out",
                 helios.framebuffers().lentCount() == 0,

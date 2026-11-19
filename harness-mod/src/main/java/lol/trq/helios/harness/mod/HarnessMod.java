@@ -63,6 +63,12 @@ public class HarnessMod {
             }
             if (helios == null) {
                 helios = MinecraftHelios.create();
+                try {
+                    Checks.stencilOnScreen = MinecraftHelios.enableStencil();
+                } catch (IllegalStateException e) {
+                    System.out.println("HELIOS-HARNESS stencil on screen unavailable: " + e.getCause());
+                }
+                System.out.println("HELIOS-HARNESS main framebuffer stencil=" + Checks.stencilOnScreen);
                 System.out.println("HELIOS-HARNESS start helios=" + Helios.version() + " java="
                         + System.getProperty("java.version") + " optifine=" + optifine() + " gl=" + Checks.glInfo());
             }
