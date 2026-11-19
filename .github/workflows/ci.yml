@@ -53,7 +53,7 @@ jobs:
             -Ptimeout=900 "-PjvmArgs=-Dlazarus.gl=core -Dlazarus.gl.debug=true" | tee harness.log
           grep -q "HELIOS-HARNESS OK java=${{ matrix.java }}" harness.log
           ! grep -q "\[lazarus\] GL error" harness.log
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: harness-java${{ matrix.java }}
