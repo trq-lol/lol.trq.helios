@@ -5,6 +5,7 @@ import java.io.File;
 import java.lang.reflect.Field;
 import lol.trq.helios.Helios;
 import lol.trq.helios.minecraft.MinecraftHelios;
+import lol.trq.helios.minecraft.MinecraftOptiFine;
 import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -108,8 +109,15 @@ public class HarnessMod {
                     System.out.println("HELIOS-HARNESS stencil on screen unavailable: " + e.getCause());
                 }
                 System.out.println("HELIOS-HARNESS main framebuffer stencil=" + Checks.stencilOnScreen);
+                MinecraftOptiFine optiFine = new MinecraftOptiFine(HarnessMod.class.getClassLoader());
+                if (Boolean.getBoolean("helios.harness.fastRender") && !optiFine.fastRender(true)) {
+                    System.out.println("HELIOS-HARNESS FAIL fast render requested but OptiFine has no such option");
+                    exitCode = 1;
+                }
                 System.out.println("HELIOS-HARNESS start helios=" + Helios.version() + " java="
-                        + System.getProperty("java.version") + " optifine=" + optifine() + " gl=" + Checks.glInfo()
+                        + System.getProperty("java.version") + " optifine="
+                        + (optiFine.present() ? optiFine.version() : "absent")
+                        + " fastRender=" + optiFine.fastRender() + " gl=" + Checks.glInfo()
                         + " lazarus.gl=" + System.getProperty("lazarus.gl"));
             }
             Frame frame = Frame.of(gui);
@@ -174,15 +182,6 @@ public class HarnessMod {
     static Object minecraft() throws ReflectiveOperationException {
         Class<?> type = Class.forName("net.minecraft.client.Minecraft", true, HarnessMod.class.getClassLoader());
         return type.getMethod("func_71410_x").invoke(null);
-    }
-
-    private static String optifine() {
-        try {
-            Class<?> config = Class.forName("Config", false, HarnessMod.class.getClassLoader());
-            return String.valueOf(config.getMethod("getVersion").invoke(null));
-        } catch (ReflectiveOperationException | LinkageError e) {
-            return "absent";
-        }
     }
 
     /**
