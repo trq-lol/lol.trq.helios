@@ -2,6 +2,7 @@
 package lol.trq.helios.minecraft;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import lol.trq.helios.Helios;
 import lol.trq.helios.fbo.SurfaceSize;
 import lol.trq.helios.gl.Gl21Backend;
@@ -21,7 +22,39 @@ public final class MinecraftHelios {
      */
     public static Helios create() {
         ClassLoader loader = MinecraftHelios.class.getClassLoader();
-        return Helios.create(new Gl21Backend(), new MinecraftGlStateCache(loader), surface(loader));
+        Gl21Backend gl = new Gl21Backend();
+        MinecraftGlStateCache cache = new MinecraftGlStateCache(loader);
+        return Helios.create(gl, cache, surface(loader));
+    }
+
+    /**
+     * Gives the main Minecraft framebuffer a stencil buffer, through Forge's {@code Framebuffer.enableStencil()}.
+     * Call it once, on the render thread, before using {@link Helios#stencil()} on screen. The framebuffer is
+     * recreated, so what was drawn so far this frame is lost.
+     *
+     * @return whether the framebuffer now has a stencil buffer
+     */
+    public static boolean enableStencil() {
+        try {
+            Class<?> mc =
+                    Class.forName("net.minecraft.client.Minecraft", false, MinecraftHelios.class.getClassLoader());
+            Object instance = method(mc, "func_71410_x", "getMinecraft").invoke(null);
+            Object framebuffer = method(mc, "func_147110_a", "getFramebuffer").invoke(instance);
+            boolean enabled =
+                    (Boolean) framebuffer.getClass().getMethod("enableStencil").invoke(framebuffer);
+            // enableStencil recreates the framebuffer and leaves nothing bound; bind it again so a call in the middle
+            // of a frame keeps drawing into it.
+            Method bind;
+            try {
+                bind = framebuffer.getClass().getMethod("func_147610_a", boolean.class);
+            } catch (NoSuchMethodException e) {
+                bind = framebuffer.getClass().getMethod("bindFramebuffer", boolean.class);
+            }
+            bind.invoke(framebuffer, true);
+            return enabled;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("cannot enable the stencil buffer", e);
+        }
     }
 
     /**

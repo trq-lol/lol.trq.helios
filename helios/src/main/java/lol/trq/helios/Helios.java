@@ -13,6 +13,7 @@ import lol.trq.helios.shader.SourceResolver;
 import lol.trq.helios.state.GlStateCache;
 import lol.trq.helios.state.ScissorStack;
 import lol.trq.helios.state.StateGuard;
+import lol.trq.helios.state.StencilMask;
 import lol.trq.helios.text.MsdfFont;
 import lol.trq.helios.text.TextRenderer;
 
@@ -40,6 +41,7 @@ public final class Helios implements AutoCloseable {
     private final ScissorStack scissor;
 
     private final TextRenderer text;
+    private final StencilMask stencil;
     private MsdfFont defaultFont;
 
     /** Class path location of the bundled font, Inter Regular (SIL Open Font License 1.1). */
@@ -58,6 +60,7 @@ public final class Helios implements AutoCloseable {
         this.effects = new Effects(gl, cache, passes, new ShapeBatch(gl, cache, shaders, 1));
         this.scissor = new ScissorStack(gl, cache, surface);
         this.text = new TextRenderer(gl);
+        this.stencil = new StencilMask(gl, cache, shapes);
     }
 
     /**
@@ -164,6 +167,15 @@ public final class Helios implements AutoCloseable {
      */
     public ScissorStack scissor() {
         return scissor;
+    }
+
+    /**
+     * Returns the stencil clipping helper.
+     *
+     * @return the helper
+     */
+    public StencilMask stencil() {
+        return stencil;
     }
 
     /**
