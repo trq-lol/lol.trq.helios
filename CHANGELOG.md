@@ -5,6 +5,10 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- The harness runs on the Lazarus 0.3.0 release.
+
 ## [0.1.0] - 2026-11-19
 
 First release. Requires Minecraft Forge 1.8.9 on LWJGL 3 through lol.trq.lazarus 0.2.0 or newer in core mode
