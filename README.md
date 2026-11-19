@@ -36,6 +36,27 @@ Status: early development (milestone H3.5), nothing released yet. See [CHANGELOG
 No Mixin. Minecraft is reached only from `lol.trq.helios.minecraft`, so the rest of Helios builds and tests without
 the game.
 
+## Install
+
+Releases are on GitHub Packages, which needs a GitHub token with `read:packages`:
+
+```groovy
+repositories {
+    maven {
+        url = uri('https://maven.pkg.github.com/trq-lol/lol.trq.helios')
+        credentials {
+            username = findProperty('gpr.user') ?: System.getenv('GITHUB_ACTOR')
+            password = findProperty('gpr.key') ?: System.getenv('GITHUB_TOKEN')
+        }
+    }
+}
+dependencies {
+    implementation 'lol.trq:lol.trq.helios:0.1.0'
+}
+```
+
+The jar and its SHA-256 are also attached to each [GitHub release](https://github.com/trq-lol/lol.trq.helios/releases).
+
 ## Usage
 
 ```java
