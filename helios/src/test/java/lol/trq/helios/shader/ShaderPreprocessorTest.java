@@ -111,5 +111,8 @@ class ShaderPreprocessorTest {
         assertEquals(List.of("shape.fsh", "lib/sdf.glsl"), out.files());
         assertTrue(out.source().contains("helios_sdRoundedRect"));
         pre.process("shape.vsh", Map.of());
+        for (String fsh : List.of("kawase_down.fsh", "kawase_up.fsh", "composite.fsh", "fullscreen.vsh")) {
+            pre.process("effect/" + fsh, Map.of());
+        }
     }
 }

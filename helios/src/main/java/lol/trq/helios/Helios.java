@@ -2,12 +2,16 @@
 package lol.trq.helios;
 
 import lol.trq.helios.batch.ShapeBatch;
+import lol.trq.helios.effect.Effects;
+import lol.trq.helios.effect.Passes;
+import lol.trq.helios.effect.PostChain;
 import lol.trq.helios.fbo.FramebufferPool;
 import lol.trq.helios.fbo.SurfaceSize;
 import lol.trq.helios.gl.GlBackend;
 import lol.trq.helios.shader.ShaderLoader;
 import lol.trq.helios.shader.SourceResolver;
 import lol.trq.helios.state.GlStateCache;
+import lol.trq.helios.state.ScissorStack;
 import lol.trq.helios.state.StateGuard;
 
 /**
@@ -29,6 +33,9 @@ public final class Helios implements AutoCloseable {
     private final ShaderLoader shaders;
     private final FramebufferPool framebuffers;
     private final ShapeBatch shapes;
+    private final Passes passes;
+    private final Effects effects;
+    private final ScissorStack scissor;
 
     /** Shapes per draw call in the default batch. */
     public static final int BATCH_CAPACITY = 4096;
@@ -39,6 +46,9 @@ public final class Helios implements AutoCloseable {
         this.shaders = new ShaderLoader(gl, resolver, GLSL_VERSION);
         this.framebuffers = new FramebufferPool(gl, surface);
         this.shapes = new ShapeBatch(gl, cache, shaders, BATCH_CAPACITY);
+        this.passes = new Passes(gl, cache, framebuffers, shaders);
+        this.effects = new Effects(gl, cache, passes, new ShapeBatch(gl, cache, shaders, 1));
+        this.scissor = new ScissorStack(gl, cache, surface);
     }
 
     /**
@@ -121,6 +131,42 @@ public final class Helios implements AutoCloseable {
     }
 
     /**
+     * Returns the full-screen passes: screen capture, blur, compositing, custom passes.
+     *
+     * @return the passes
+     */
+    public Passes passes() {
+        return passes;
+    }
+
+    /**
+     * Returns the screen effects: blur behind a shape, bloom.
+     *
+     * @return the effects
+     */
+    public Effects effects() {
+        return effects;
+    }
+
+    /**
+     * Returns the scissor stack.
+     *
+     * @return the stack
+     */
+    public ScissorStack scissor() {
+        return scissor;
+    }
+
+    /**
+     * Starts a new post-processing chain.
+     *
+     * @return an empty chain
+     */
+    public PostChain postChain() {
+        return new PostChain(passes);
+    }
+
+    /**
      * Returns the library version from the jar manifest.
      *
      * @return the version, or {@code "dev"} when running from classes outside a jar
@@ -134,6 +180,8 @@ public final class Helios implements AutoCloseable {
     @Override
     public void close() {
         shapes.close();
+        effects.close();
+        passes.close();
         framebuffers.close();
     }
 }
