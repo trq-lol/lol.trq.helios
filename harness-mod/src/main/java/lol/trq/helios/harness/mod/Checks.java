@@ -515,7 +515,10 @@ final class Checks {
             if (!ref.isFile()) {
                 boolean required = Boolean.getBoolean("helios.harness.requireReferences");
                 System.out.println("HELIOS-HARNESS reference " + name + " missing for this size: " + file);
-                expect(name + " reference exists", !required, file);
+                expect(
+                        name + (required ? " reference exists" : " reference skipped, none for this size"),
+                        !required,
+                        file);
                 return;
             }
             BufferedImage expected = ImageIO.read(ref);
