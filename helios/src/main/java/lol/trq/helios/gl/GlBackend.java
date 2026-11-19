@@ -400,6 +400,16 @@ public interface GlBackend {
     void bufferSubData(int target, long offset, ByteBuffer data);
 
     /**
+     * Writes into part of a buffer through an unsynchronized mapping that invalidates the range: no wait on the GPU.
+     * The caller guarantees, with fences, that the GPU no longer reads that range.
+     *
+     * @param target the binding target
+     * @param offset the byte offset
+     * @param data the bytes, from position to limit
+     */
+    void bufferWriteUnsynchronized(int target, long offset, ByteBuffer data);
+
+    /**
      * Enables a vertex attribute in the bound vertex array.
      *
      * @param index the attribute location

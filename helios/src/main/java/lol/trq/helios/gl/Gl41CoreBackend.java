@@ -36,6 +36,7 @@ public final class Gl41CoreBackend implements GlBackend {
     public static final int CONTEXT_CORE_PROFILE_BIT = 0x1;
 
     private static final String EMULATOR = "lol.trq.lazarus.lwjgl3.gl.CoreGl";
+    private static final String STATE = "lol.trq.lazarus.lwjgl3.gl.GlState";
     private static final int GL_MODELVIEW_MATRIX = 0x0BA6;
     private static final int GL_PROJECTION_MATRIX = 0x0BA7;
     private static final int GL_RGBA8 = 0x8058;
@@ -47,6 +48,14 @@ public final class Gl41CoreBackend implements GlBackend {
 
     private final float[] clear = new float[4];
     private final MethodHandle getMatrix;
+    // Lazarus's GlState: matrices and bindings answered from the emulator, no driver query. Null when the running
+    // Lazarus predates it; then the emulator's glGetFloat and driver queries are used.
+    private final MethodHandle stateModelView;
+    private final MethodHandle stateProjection;
+    private final MethodHandle stateProgram;
+    private final MethodHandle stateVertexArray;
+    private final MethodHandle stateArrayBuffer;
+    private final MethodHandle stateViewport;
     private final FloatBuffer matrix =
             ByteBuffer.allocateDirect(64).order(ByteOrder.nativeOrder()).asFloatBuffer();
 
@@ -58,6 +67,47 @@ public final class Gl41CoreBackend implements GlBackend {
     public Gl41CoreBackend() {
         requireCoreContext();
         getMatrix = emulatorMatrixQuery();
+        Class<?> state = stateClass();
+        stateModelView = state(state, "modelView", MethodType.methodType(void.class, float[].class));
+        stateProjection = state(state, "projection", MethodType.methodType(void.class, float[].class));
+        stateProgram = state(state, "program", MethodType.methodType(int.class));
+        stateVertexArray = state(state, "vertexArray", MethodType.methodType(int.class));
+        stateArrayBuffer = state(state, "arrayBuffer", MethodType.methodType(int.class));
+        stateViewport = state(state, "viewport", MethodType.methodType(boolean.class, int[].class));
+    }
+
+    private static Class<?> stateClass() {
+        try {
+            Class<?> c = Class.forName(STATE, true, ClassLoader.getSystemClassLoader());
+            boolean active = (boolean) MethodHandles.publicLookup()
+                    .findStatic(c, "active", MethodType.methodType(boolean.class))
+                    .invokeExact();
+            return active ? c : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static MethodHandle state(Class<?> c, String name, MethodType type) {
+        if (c == null) {
+            return null;
+        }
+        try {
+            return MethodHandles.publicLookup().findStatic(c, name, type);
+        } catch (ReflectiveOperationException e) {
+            return null;
+        }
+    }
+
+    private static int cached(MethodHandle h) {
+        if (h == null) {
+            return -1;
+        }
+        try {
+            return (int) h.invokeExact();
+        } catch (Throwable t) {
+            return -1;
+        }
     }
 
     /**
@@ -94,16 +144,44 @@ public final class Gl41CoreBackend implements GlBackend {
 
     @Override
     public int getInteger(int pname) {
+        int known =
+                switch (pname) {
+                    case CURRENT_PROGRAM -> cached(stateProgram);
+                    case VERTEX_ARRAY_BINDING -> cached(stateVertexArray);
+                    case ARRAY_BUFFER_BINDING -> cached(stateArrayBuffer);
+                    default -> -1;
+                };
+        if (known >= 0) {
+            return known;
+        }
         return GL11C.glGetInteger(pname);
     }
 
     @Override
     public void getIntegers(int pname, int[] out) {
+        if (pname == VIEWPORT && stateViewport != null) {
+            try {
+                if ((boolean) stateViewport.invokeExact(out)) {
+                    return;
+                }
+            } catch (Throwable t) {
+                // fall through to the driver
+            }
+        }
         GL11C.glGetIntegerv(pname, out);
     }
 
     @Override
     public void matrices(float[] modelView, float[] projection) {
+        if (stateModelView != null && stateProjection != null) {
+            try {
+                stateModelView.invokeExact(modelView);
+                stateProjection.invokeExact(projection);
+                return;
+            } catch (Throwable t) {
+                // fall back to the emulator's glGetFloat
+            }
+        }
         read(GL_MODELVIEW_MATRIX, modelView);
         read(GL_PROJECTION_MATRIX, projection);
     }
@@ -340,6 +418,22 @@ public final class Gl41CoreBackend implements GlBackend {
     @Override
     public void bufferSubData(int target, long offset, ByteBuffer data) {
         GL15C.glBufferSubData(target, offset, data);
+    }
+
+    @Override
+    public void bufferWriteUnsynchronized(int target, long offset, ByteBuffer data) {
+        int size = data.remaining();
+        ByteBuffer mapped = GL30C.glMapBufferRange(
+                target,
+                offset,
+                size,
+                GL30C.GL_MAP_WRITE_BIT | GL30C.GL_MAP_UNSYNCHRONIZED_BIT | GL30C.GL_MAP_INVALIDATE_RANGE_BIT);
+        if (mapped == null) {
+            GL15C.glBufferSubData(target, offset, data);
+            return;
+        }
+        mapped.put(data.duplicate());
+        GL15C.glUnmapBuffer(target);
     }
 
     @Override

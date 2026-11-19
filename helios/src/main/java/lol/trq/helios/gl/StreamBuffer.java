@@ -6,8 +6,9 @@ import java.nio.ByteBuffer;
 /**
  * Streamed vertex data, the one place that decides how per-frame uploads reach the GPU.
  *
- * <p>The current strategy keeps a ring of array buffers. Each frame appends its data to one buffer with
- * {@code glBufferSubData}, so no upload touches a region the GPU may still be reading. {@link #endFrame()} fences the
+ * <p>The strategy keeps a ring of array buffers. Each frame appends its data to one buffer, so no upload touches a
+ * region the GPU may still be reading. The write itself is {@code glBufferSubData} by default, or an unsynchronized
+ * {@code glMapBufferRange} with {@code -Dhelios.stream=map}; the fences make the mapping safe. {@link #endFrame()} fences the
  * buffer and moves to the next, waiting on that one's fence from {@code ring} frames ago (normally long signalled). A
  * frame that outgrows its buffer orphans it and starts again at offset 0.
  */
@@ -17,8 +18,12 @@ public final class StreamBuffer implements AutoCloseable {
 
     private static final long FENCE_TIMEOUT_NANOS = 1_000_000_000L;
 
+    /** {@code -Dhelios.stream}: {@code subdata} (default) or {@code map}. */
+    public static final String STRATEGY_PROPERTY = "helios.stream";
+
     private final GlBackend gl;
     private final long capacity;
+    private final boolean mapped = "map".equals(System.getProperty(STRATEGY_PROPERTY));
     private final int[] buffers = new int[RING];
     private final long[] fences = new long[RING];
     private int current;
@@ -64,7 +69,11 @@ public final class StreamBuffer implements AutoCloseable {
             at = 0;
             orphans++;
         }
-        gl.bufferSubData(GlBackend.ARRAY_BUFFER, at, data);
+        if (mapped) {
+            gl.bufferWriteUnsynchronized(GlBackend.ARRAY_BUFFER, at, data);
+        } else {
+            gl.bufferSubData(GlBackend.ARRAY_BUFFER, at, data);
+        }
         offset = at + size;
         return at;
     }

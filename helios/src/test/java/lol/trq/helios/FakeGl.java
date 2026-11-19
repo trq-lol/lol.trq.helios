@@ -411,6 +411,11 @@ public final class FakeGl implements GlBackend, GlStateCache {
     }
 
     @Override
+    public void bufferWriteUnsynchronized(int target, long offset, java.nio.ByteBuffer data) {
+        bufferSubData(target, offset, data);
+    }
+
+    @Override
     public void enableVertexAttrib(int index) {
         calls.add("enableAttrib " + index);
         attribsEnabled.add(index);

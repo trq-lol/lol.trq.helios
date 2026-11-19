@@ -206,6 +206,11 @@ final class NullGl implements GlBackend, GlStateCache {
     }
 
     @Override
+    public void bufferWriteUnsynchronized(int target, long offset, java.nio.ByteBuffer data) {
+        bytesStreamed += data.remaining();
+    }
+
+    @Override
     public void enableVertexAttrib(int index) {}
 
     @Override
