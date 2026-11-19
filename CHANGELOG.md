@@ -5,14 +5,24 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-19
+
 ### Added
 
 - `MinecraftOptiFine`: whether OptiFine is installed, its version, and its Fast Render option, by reflection. Helios's
   drawing works with Fast Render on; the harness checks it with `-Poptifine=<jar> -PfastRender`.
+- The world harness saves `world.png`: a stand-in player drawn through every mesh sink at the head, body and back
+  anchors, for a visual check.
 
 ### Changed
 
-- The harness runs on the Lazarus 0.4.2 release with the splash screen on.
+- The harness runs on the Lazarus 0.4.2 release with Forge's splash screen on.
+
+### Fixed
+
+- The harness no longer exits from a client tick, which could deadlock with the game's shutdown hook and fail a run
+  after every check had passed; the test mod quits through `Minecraft.shutdown()` and reports its result on a line.
+- The world harness's head anchor check allows for the head's pitch.
 
 ## [0.1.0] - 2026-11-19
 
@@ -61,5 +71,6 @@ First release. Requires Minecraft Forge 1.8.9 on LWJGL 3 through lol.trq.lazarus
   restoration, and any `[lazarus] GL error` fails the run. `-Pworld` checks projection, player anchors and mesh
   drawing in a singleplayer world. Runs in CI under Xvfb with Mesa.
 
-[Unreleased]: https://github.com/trq-lol/lol.trq.helios/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/trq-lol/lol.trq.helios/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.1
 [0.1.0]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.0
