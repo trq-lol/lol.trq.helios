@@ -2,4 +2,4 @@ plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
 rootProject.name = 'lol.trq.helios'
-include 'helios', 'harness', 'harness-mod'
+include 'helios', 'fontgen', 'harness', 'harness-mod'

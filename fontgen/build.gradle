@@ -1,0 +1,20 @@
+// MSDF atlas generator: builds .hfnt font atlases from TrueType or OpenType fonts. Runs at build time, never in game.
+plugins {
+    id 'application'
+}
+
+application {
+    mainClass = 'lol.trq.helios.fontgen.FontGen'
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    systemProperty 'java.awt.headless', 'true'
+    systemProperty 'helios.fontDir', rootProject.file('fonts').absolutePath
+}
