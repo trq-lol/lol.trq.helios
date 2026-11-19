@@ -5,6 +5,13 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-19
+
+### Fixed
+
+- `ShapeBatch` drops a shape or glyph whose position or size is NaN or infinite. The GPU drew such a shape as a thin
+  sliver toward the centre of the screen.
+
 ## [0.1.4] - 2026-11-19
 
 ### Fixed
@@ -94,7 +101,8 @@ First release. Requires Minecraft Forge 1.8.9 on LWJGL 3 through lol.trq.lazarus
   restoration, and any `[lazarus] GL error` fails the run. `-Pworld` checks projection, player anchors and mesh
   drawing in a singleplayer world. Runs in CI under Xvfb with Mesa.
 
-[Unreleased]: https://github.com/trq-lol/lol.trq.helios/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/trq-lol/lol.trq.helios/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.5
 [0.1.4]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.4
 [0.1.3]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.3
 [0.1.2]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.2

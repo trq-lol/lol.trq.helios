@@ -41,7 +41,7 @@ repositories {
     }
 }
 dependencies {
-    implementation 'lol.trq:lol.trq.helios:0.1.4'
+    implementation 'lol.trq:lol.trq.helios:0.1.5'
 }
 ```
 
