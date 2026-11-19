@@ -19,8 +19,7 @@ jobs:
       - run: ./gradlew spotlessCheck build
 
   # Boots Forge 1.8.9 on LWJGL 3 through Lazarus under a virtual display with software OpenGL (Mesa), and fails
-  # unless every in-game rendering check passes. Reference images are per framebuffer size, so the blur and bloom
-  # comparisons are skipped here when no reference exists for the virtual display.
+  # unless every in-game rendering check passes, including blur and bloom against the 854x480 Mesa references.
   harness:
     runs-on: ubuntu-latest
     strategy:
@@ -49,7 +48,7 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
         run: |
-          xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :harness:runHarness${{ matrix.java }} -Ptimeout=900 | tee harness.log
+          xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :harness:runHarness${{ matrix.java }} -PrequireReferences -Ptimeout=900 | tee harness.log
           grep -q "HELIOS-HARNESS OK java=${{ matrix.java }}" harness.log
       - uses: actions/upload-artifact@v4
         if: always()
