@@ -1,0 +1,36 @@
+title: Helios
+description: A rendering library for Minecraft Forge 1.8.9 on LWJGL 3 and OpenGL 4.1 core, with SDF shapes, MSDF text, blur and bloom.
+url: https://helios.trq.lol
+wordmark: helios
+tagline: A rendering library for Minecraft Forge 1.8.9 on LWJGL 3, OpenGL 4.1 core only.
+license: MIT
+repo: https://github.com/trq-lol/lol.trq.helios
+
+nav:
+  - { title: OpenGL rules, url: /docs/opengl.html }
+  - { title: Benchmarks, url: /BENCHMARKS.html }
+  - { title: Changelog, url: /CHANGELOG.html }
+  - { title: API, url: /api/ }
+  - { title: Lazarus, url: "https://lazarus.trq.lol" }
+  - { title: GitHub, url: "https://github.com/trq-lol/lol.trq.helios" }
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+exclude:
+  - CLAUDE.md
+  - README.md
+  - build
+  - fontgen
+  - fonts
+  - gradle
+  - harness
+  - harness-mod
+  - helios
+  - "*.gradle"
+  - gradle.properties
+  - gradlew
+  - gradlew.bat
