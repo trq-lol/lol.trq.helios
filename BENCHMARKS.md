@@ -8,12 +8,13 @@ the GPU cost of real workloads in the game (the harness). Report what you measur
 ```
 ./gradlew :helios:jmh                                  # all CPU benchmarks, GC profiler on
 ./gradlew :helios:jmh -Pjmh.include=textLine           # one benchmark (on Windows, avoid | in the pattern)
-./gradlew :harness:runHarness25 -Pbench                # GPU timings in the game (opens a window)
+./gradlew :harness:runHarness25 -Pbench -PlazarusJar=<jar> -PjvmArgs="-Dlazarus.gl=core"   # GPU timings in the game
 ```
 
 JMH results land in `helios/build/results/jmh/results.json`. The harness prints `HELIOS-BENCH` lines: each workload
 draws into an offscreen framebuffer the size of the window between two `glFinish` calls, 20 warm-up runs, median and
-p90 of 30 runs. GPU numbers include the CPU work of building the batch. They are noisy at the 1 ms level; the first
+p90 of 30 runs; each run counts as one frame for the streamed vertex buffers. GPU numbers include the CPU work of
+building and uploading the batch. They are noisy at the 1 ms level; the first
 workload of a run tends to read high.
 
 ## CPU (JMH)
@@ -48,7 +49,44 @@ table instead of a boxed `HashMap` key; `StateGuard` keeps saved state in fields
 `EnumSet`, a `List` and eight arrays; linear gradients no longer build a corner array; vertex colours are written as
 one int each. The 208 B left per text line is the state guard of the batch flush.
 
-## GPU (harness)
+## Core profile (H3.5)
+
+Helios moved to the OpenGL 4.1 core profile (Lazarus core mode): indexed triangles from its own vertex arrays,
+uploads through a fenced ring of buffers, matrices as uniforms. Same machine, measured 2026-11-18.
+
+CPU (JMH), against the no-op backend:
+
+| Benchmark | H3 (legacy) | H3.5 (core) |
+|---|---|---|
+| `rectSolid` | 56.3 ns, 0.2 B | 54.3 ns, 0.1 B |
+| `rectGradient` | 97.4 ns, 0.2 B | 92.3 ns, 0.1 B |
+| `line` | 61.6 ns, 0.2 B | 66.9 ns, 0.1 B |
+| `textLine` | 2971 ns, 208 B | 2966 ns, 184 B |
+| `textLineShadow` | 6010 ns, 208 B | 6528 ns, 184 B |
+| `textFormatted` | 2699 ns, 208 B | 2919 ns, 184 B |
+| `stateGuard` | 12.8 ns, 160 B | 11.4 ns, 136 B |
+| `blurBehindCpu` | 446 ns, 2824 B | 524 ns, 2584 B |
+| `preprocessShader` | 38.7 µs | 42.5 µs |
+
+Within noise, except that a flush now also reads the game's two matrices and sets three more uniforms; the guard
+is smaller (fewer slots).
+
+GPU (harness), Lazarus `feat/core-gl` at `fce8f84`, `-Dlazarus.gl=core -Dlazarus.gl.debug=true`:
+
+| Workload | Median | p90 | With OptiFine HD U M5 |
+|---|---|---|---|
+| 10000 rounded rects (24x12, translucent) | 1.96 ms | 2.46 ms | 5.12 ms (first workload, see above) |
+| 10000 circles with a radial gradient | 2.00 ms | 2.45 ms | 1.49 ms |
+| 2000 glyphs of 9 px text (32 lines) | 0.23 ms | 0.34 ms | 0.22 ms |
+| One MSDF text batch (1 line, 1 draw call) | 0.029 ms | 0.031 ms | 0.024 ms |
+| One blur pass (1 iteration, full screen) | 0.057 ms | 0.059 ms | 0.056 ms |
+| Full-screen blur behind, 4 iterations | 0.20 ms | 0.31 ms | 0.17 ms |
+| Full-screen bloom, 3 iterations | 0.15 ms | 0.17 ms | 0.14 ms |
+
+Faster than the legacy path across the board on this machine. These are NVIDIA numbers; Apple's driver is where
+uploads cost most, and the Mac run is still to come.
+
+## GPU (harness, legacy context, H2)
 
 Windows 10, NVIDIA GeForce RTX 4070 (driver 581.80), 1281x720, Java 25, measured 2026-11-19.
 

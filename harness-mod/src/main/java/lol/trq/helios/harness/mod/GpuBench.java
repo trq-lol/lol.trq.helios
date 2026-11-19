@@ -12,8 +12,9 @@ import org.lwjgl.opengl.GL11;
 
 /**
  * GPU timings, with {@code -Dhelios.harness.bench=true}: each workload runs into an offscreen framebuffer the size of
- * the window, between two {@code glFinish} calls, and the median of 30 runs after 20 warm-up runs is reported. The numbers include the CPU
- * work of building the batch.
+ * the window, between two {@code glFinish} calls, and the median of 30 runs after 20 warm-up runs is reported. The
+ * numbers include the CPU work of building the batch and uploading it. Each run counts as one frame for the streamed
+ * vertex buffers.
  */
 final class GpuBench {
     private static final int WARMUP = 20;
@@ -22,6 +23,7 @@ final class GpuBench {
     private GpuBench() {}
 
     static void run(Helios helios, HarnessMod.Frame frame) {
+        GpuBench.helios = helios;
         float p = frame.pixel();
         float w = frame.guiWidth();
         float h = frame.guiHeight();
@@ -53,6 +55,15 @@ final class GpuBench {
                 }
                 b.end();
             });
+            time("one MSDF text batch (1 line, 1 draw call)", () -> {
+                ShapeBatch b = helios.shapes().begin(p);
+                helios.text().draw(b, line, 4, 4, style);
+                b.end();
+            });
+            time(
+                    "one blur pass (1 iteration, full screen)",
+                    () -> helios.framebuffers()
+                            .release(helios.passes().blur(fb.texture(), fb.width(), fb.height(), 1, 2)));
             time(
                     "full-screen blur behind, 4 iterations",
                     () -> helios.effects().blurBehind(0, 0, w, h, 0, p, 4, 2, 0xFFFFFFFF));
@@ -71,6 +82,8 @@ final class GpuBench {
         helios.framebuffers().release(fb);
     }
 
+    private static Helios helios;
+
     private static void time(String name, Runnable work) {
         double[] ms = new double[RUNS];
         for (int i = 0; i < WARMUP + RUNS; i++) {
@@ -79,6 +92,8 @@ final class GpuBench {
             work.run();
             GL11.glFinish();
             long t1 = System.nanoTime();
+            // Each run stands for one frame: rotate the streamed vertex buffers as Helios.tick() would.
+            helios.shapes().endFrame();
             if (i >= WARMUP) {
                 ms[i - WARMUP] = (t1 - t0) / 1e6;
             }
