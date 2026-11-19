@@ -18,6 +18,8 @@ Helios (one per GL context)
   StencilMask          mask drawn with alpha cutoff 0.5 into the stencil, then content with EQUAL / NOTEQUAL
   TextRenderer         MsdfFont (.hfnt: metrics, kerning, deflated RGB atlas) -> layout -> ShapeBatch.glyph (kind 5)
   ShaderHotReload      dev only: polls source mtimes, ShaderLoader.reloadAll(); Helios.tick() drives it
+color/ anim/ math/     pure Java, allocation-free: Colors (packed ARGB), Easing/Animation/Smooth/Stopwatch on a
+                       Clock, Maths, Mat4 (column-major float[16]), Projector (gluProject without GLU)
 fontgen/               build-time msdfgen port: AWT outline -> GlyphShape -> EdgeColoring -> MsdfGenerator -> .hfnt
 minecraft/             the only Minecraft-aware package: reflection with SRG names, MCP fallback
 ```
@@ -39,6 +41,11 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
   `VERSION` in both when it changes.
 - **Measure, then optimize.** Hot paths (batch emit, text layout, guards) are allocation-light; run
   `./gradlew :helios:jmh` before and after a change there and update `BENCHMARKS.md`.
+- **Time goes through `Clock`.** Animation, Smooth and Stopwatch take a clock so tests drive them; never call
+  `System.nanoTime()` inside them.
+- **Projection is in the space it was captured in.** Capture in a world hook and Minecraft's matrices are
+  camera-relative: positions are world minus `MinecraftWorld.camera()`. View bobbing is part of the camera and is
+  included, which is right for overlays.
 - **Prove it in the game.** A rendering change runs `./gradlew :harness:runHarness25` (and with `-Poptifine=<jar>`);
   every `HELIOS-HARNESS check` line must pass. Look at the screenshots.
 

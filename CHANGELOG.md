@@ -27,6 +27,13 @@ project uses [Semantic Versioning](https://semver.org/).
 - `StencilMask` to clip drawing to any shape; `MinecraftHelios.enableStencil()`.
 - Shader hot reload from a source directory (`-Dhelios.shaderDir`, `Helios.tick()`).
 - JMH benchmarks and harness GPU timings; see `BENCHMARKS.md`.
+- `Colors`: packed ARGB maths, HSB/HSL, sRGB, linear-light and hue interpolation, rainbow and ping-pong, hex
+  parsing and formatting, readable text colour.
+- `Easing` curves, `Animation` that reverses mid-flight without jumping, frame-rate independent `Smooth`,
+  `Stopwatch`; all driven by an injectable `Clock`.
+- `Maths`, column-major `Mat4`, and `Projector` for world-to-screen projection and 2D bounding boxes.
+- `MinecraftWorld`: partial ticks, camera position, interpolated entity positions and boxes.
 - `MinecraftHelios`: wiring for Forge 1.8.9, by reflection, no Mixin.
 - Development harness that boots Forge 1.8.9 on LWJGL 3 through lol.trq.lazarus and checks rendering in game:
   every primitive against a software model, blur and bloom against reference images; also run in CI under Xvfb.
+  `-Pworld` checks projection with the real camera matrices in a singleplayer world.

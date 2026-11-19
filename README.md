@@ -3,7 +3,7 @@
 A rendering library for Minecraft Forge 1.8.9 running on LWJGL 3: SDF shapes, MSDF text, shaders, framebuffers,
 blur and bloom, with strict GL state discipline so vanilla and OptiFine keep a coherent state.
 
-Status: early development (milestone H2), nothing released yet. See [CHANGELOG.md](CHANGELOG.md).
+Status: early development (milestone H3), nothing released yet. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements
 
@@ -25,7 +25,10 @@ Status: early development (milestone H2), nothing released yet. See [CHANGELOG.m
 | `effect` | Dual Kawase blur, blur behind a shape (frosted glass), bloom, post-processing chains |
 | `text` | MSDF text: `MsdfFont`, `TextRenderer` (kerning, `§` colour and format codes, classic and soft shadows), `TextStyle`; Inter is bundled |
 | `sdf` | The distance functions of the shape shader, in Java, for tests |
-| `minecraft` | The only package that knows Minecraft: `GlStateManager` routing and the window size, by reflection |
+| `color` | `Colors`: packed ARGB maths, HSB and HSL, sRGB, linear-light and hue interpolation, rainbow and ping-pong over time, hex parsing, readable text colour |
+| `anim` | `Easing` curves, `Animation` (reversible mid-flight), `Smooth` (frame-rate independent damping), `Stopwatch` |
+| `math` | `Maths` (clamp, remap, angles, rounding, Gaussian kernels), `Mat4` (column-major, allocation-free), `Projector` (world to screen, 2D boxes for ESP) |
+| `minecraft` | The only package that knows Minecraft: `GlStateManager` routing, the window size, stencil, and `MinecraftWorld` (partial ticks, camera, interpolated entity positions and boxes), by reflection |
 
 No Mixin. Minecraft is reached only from `lol.trq.helios.minecraft`, so the rest of Helios builds and tests without
 the game.
@@ -76,6 +79,33 @@ bundled font is [Inter](https://github.com/rsms/inter) Regular. To use another f
 ./gradlew :fontgen:run --args="--font MyFont.ttf --out myfont.hfnt --size 40 --range 4 --png preview.png"
 ```
 
+### Animation and colour
+
+```java
+Animation open = new Animation(250, Easing.CUBIC_OUT);   // per widget, kept across frames
+open.forward(menuOpen);                                  // reverses smoothly mid-flight
+float scale = open.between(0.9f, 1f);
+int accent = Colors.lerpHsb(0xFFFF4D8D, 0xFF4D9DFF, (float) open.value());
+int stripe = Colors.rainbow(System.currentTimeMillis(), 4000, index * 0.05f, 0.7f, 1f, 1f);
+```
+
+### World to screen
+
+```java
+// In a world render hook, where the camera matrices are current:
+MinecraftWorld world = new MinecraftWorld(loader);        // once
+projector.capture(helios.gl(), pixel);
+double[] camera = world.camera(new double[3]);
+float partial = world.partialTicks();
+double[] box = world.box(entity, partial, camera, new double[6]);
+
+// Later, in the GUI:
+float[] rect = new float[4];
+if (projector.projectBox(box[0], box[1], box[2], box[3], box[4], box[5], rect)) {
+    batch.outline(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], 0, 1, Paint.solid(0xFFFF4040));
+}
+```
+
 ### Stencil clipping
 
 ```java
@@ -120,10 +150,14 @@ The harness downloads Minecraft 1.8.9, Forge and the lol.trq.lazarus release jar
 - draws one glyph and compares each pixel with a software model of the MSDF shader;
 - compares text and stencil clipping with reference images;
 - runs a post-processing chain, the scissor stack and stencil masks offscreen;
+- projects points through the game's real GUI matrices and checks they land where they were drawn;
 - checks that GL state is unchanged afterwards and that the `GlStateManager` cache still matches GL;
 - saves screenshots to `harness/build/run/<task>/helios/` and exits 0 only if every check passed.
 
-With `-Pbench` it also prints GPU timings; see [BENCHMARKS.md](BENCHMARKS.md). It opens a game window while it
+With `-Pbench` it also prints GPU timings; see [BENCHMARKS.md](BENCHMARKS.md). With `-Pworld` it then creates a
+world and checks projection with the real camera matrices: a point ahead of the player's eyes must project to the
+exact screen centre, and the player's interpolated position must sit on the camera. The harness turns view bobbing
+off for this. It opens a game window while it
 runs. OptiFine cannot be redistributed: point `-Poptifine` at a local copy. CI runs
 the harness on Linux under a virtual display with software OpenGL.
 

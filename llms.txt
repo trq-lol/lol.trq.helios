@@ -35,6 +35,10 @@
 - [MsdfFont](helios/src/main/java/lol/trq/helios/text/MsdfFont.java): .hfnt font loading, glyphs, kerning, atlas
 - [TextRenderer](helios/src/main/java/lol/trq/helios/text/TextRenderer.java) and [TextStyle](helios/src/main/java/lol/trq/helios/text/TextStyle.java): layout, codes, shadows
 - [ShaderHotReload](helios/src/main/java/lol/trq/helios/shader/ShaderHotReload.java): development hot reload
+- [Colors](helios/src/main/java/lol/trq/helios/color/Colors.java): packed colour maths
+- [Easing](helios/src/main/java/lol/trq/helios/anim/Easing.java), [Animation](helios/src/main/java/lol/trq/helios/anim/Animation.java), [Smooth](helios/src/main/java/lol/trq/helios/anim/Smooth.java), [Stopwatch](helios/src/main/java/lol/trq/helios/anim/Stopwatch.java): timing and animation
+- [Maths](helios/src/main/java/lol/trq/helios/math/Maths.java), [Mat4](helios/src/main/java/lol/trq/helios/math/Mat4.java), [Projector](helios/src/main/java/lol/trq/helios/math/Projector.java): numbers, matrices, world to screen
+- [MinecraftWorld](helios/src/main/java/lol/trq/helios/minecraft/MinecraftWorld.java): partial ticks, camera, interpolated entity positions
 - [AtlasBuilder](fontgen/src/main/java/lol/trq/helios/fontgen/AtlasBuilder.java) and [FontGen](fontgen/src/main/java/lol/trq/helios/fontgen/FontGen.java): atlas building and its command line
 - [MsdfGenerator](fontgen/src/main/java/lol/trq/helios/fontgen/MsdfGenerator.java), [EdgeColoring](fontgen/src/main/java/lol/trq/helios/fontgen/EdgeColoring.java), [EdgeSegment](fontgen/src/main/java/lol/trq/helios/fontgen/EdgeSegment.java): the msdfgen port
 - [MinecraftHelios](helios/src/main/java/lol/trq/helios/minecraft/MinecraftHelios.java) and [MinecraftGlStateCache](helios/src/main/java/lol/trq/helios/minecraft/MinecraftGlStateCache.java): the Minecraft hook
@@ -53,6 +57,8 @@
 - [StencilMaskTest](helios/src/test/java/lol/trq/helios/state/StencilMaskTest.java): mask and content state
 - [ShaderHotReloadTest](helios/src/test/java/lol/trq/helios/shader/ShaderHotReloadTest.java): change detection, failed reloads
 - [FontGenTest](fontgen/src/test/java/lol/trq/helios/fontgen/FontGenTest.java): distances, colouring, glyphs against the rasterizer
+- [ColorsTest](helios/src/test/java/lol/trq/helios/color/ColorsTest.java), [AnimTest](helios/src/test/java/lol/trq/helios/anim/AnimTest.java), [MathTest](helios/src/test/java/lol/trq/helios/math/MathTest.java): colour, animation, matrices and projection
+- [WorldCheck](harness-mod/src/main/java/lol/trq/helios/harness/mod/WorldCheck.java): projection against the real camera
 - [HeliosBench](helios/src/jmh/java/lol/trq/helios/bench/HeliosBench.java): CPU benchmarks
 - [HarnessMod](harness-mod/src/main/java/lol/trq/helios/harness/mod/HarnessMod.java) and [Checks](harness-mod/src/main/java/lol/trq/helios/harness/mod/Checks.java): in-game use and checks; [Model](harness-mod/src/main/java/lol/trq/helios/harness/mod/Model.java): software model of the shape shader
 
