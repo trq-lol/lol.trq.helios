@@ -1,0 +1,11 @@
+# lol.trq.helios
+
+> A rendering library for Minecraft Forge 1.8.9 on LWJGL 3: SDF shapes, MSDF text, shaders, framebuffers, blur and
+> bloom. OpenGL 2.1 + GLSL 1.20 baseline, Java 17 bytecode, MIT.
+
+## Docs
+
+- [README](README.md): requirements, building
+- [CLAUDE.md](CLAUDE.md): mental model, patterns, traps
+- [CHANGELOG](CHANGELOG.md): release notes
+- [CONTRIBUTING](CONTRIBUTING.md): commit and test conventions

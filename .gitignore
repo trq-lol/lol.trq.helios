@@ -1,0 +1,16 @@
+.gradle/
+build/
+out/
+run/
+.harness-cache/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# local-only test inputs
+*.optifine.jar
+OptiFine*.jar
+
+# planning documents live in a separate repository
+docs/superpowers/
