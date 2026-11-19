@@ -1,11 +1,42 @@
 # lol.trq.helios
 
 > A rendering library for Minecraft Forge 1.8.9 on LWJGL 3: SDF shapes, MSDF text, shaders, framebuffers, blur and
-> bloom. OpenGL 2.1 + GLSL 1.20 baseline, Java 17 bytecode, MIT.
+> bloom. OpenGL 2.1 + GLSL 1.20 baseline, Java 17 bytecode, no Mixin, MIT.
 
 ## Docs
 
-- [README](README.md): requirements, building
-- [CLAUDE.md](CLAUDE.md): mental model, patterns, traps
+- [README](README.md): requirements, packages, usage, harness
+- [CLAUDE.md](CLAUDE.md): mental model, patterns that matter, traps
 - [CHANGELOG](CHANGELOG.md): release notes
 - [CONTRIBUTING](CONTRIBUTING.md): commit and test conventions
+- [NOTICE](NOTICE.md): the LGPL harness file
+
+## Core source
+
+- [Helios](helios/src/main/java/lol/trq/helios/Helios.java): entry point, one per GL context
+- [GlBackend](helios/src/main/java/lol/trq/helios/gl/GlBackend.java): the GL seam
+- [Gl21Backend](helios/src/main/java/lol/trq/helios/gl/Gl21Backend.java): OpenGL 2.1 baseline on LWJGL 3
+- [StateGuard](helios/src/main/java/lol/trq/helios/state/StateGuard.java): save on first touch, restore on close
+- [GlStateCache](helios/src/main/java/lol/trq/helios/state/GlStateCache.java): host state cache seam
+- [ShaderPreprocessor](helios/src/main/java/lol/trq/helios/shader/ShaderPreprocessor.java): includes, defines, #line
+- [ShaderLoader](helios/src/main/java/lol/trq/helios/shader/ShaderLoader.java): compile, link, reload
+- [ShaderProgram](helios/src/main/java/lol/trq/helios/shader/ShaderProgram.java): uniform location cache
+- [ShaderLog](helios/src/main/java/lol/trq/helios/shader/ShaderLog.java): driver logs to file:line
+- [FramebufferPool](helios/src/main/java/lol/trq/helios/fbo/FramebufferPool.java): framebuffer reuse, resize handling
+- [Sdf](helios/src/main/java/lol/trq/helios/sdf/Sdf.java) and [sdf.glsl](helios/src/main/resources/lol/trq/helios/shaders/lib/sdf.glsl): distance and coverage
+- [RoundedRectRenderer](helios/src/main/java/lol/trq/helios/sdf/RoundedRectRenderer.java): the first primitive
+- [MinecraftHelios](helios/src/main/java/lol/trq/helios/minecraft/MinecraftHelios.java) and [MinecraftGlStateCache](helios/src/main/java/lol/trq/helios/minecraft/MinecraftGlStateCache.java): the Minecraft hook
+
+## Examples
+
+- [StateGuardTest](helios/src/test/java/lol/trq/helios/state/StateGuardTest.java): guard semantics
+- [ShaderPreprocessorTest](helios/src/test/java/lol/trq/helios/shader/ShaderPreprocessorTest.java): include and define rules
+- [ShaderLoaderTest](helios/src/test/java/lol/trq/helios/shader/ShaderLoaderTest.java): errors, uniform cache, reload
+- [FramebufferPoolTest](helios/src/test/java/lol/trq/helios/fbo/FramebufferPoolTest.java): pooling and resize
+- [SdfTest](helios/src/test/java/lol/trq/helios/sdf/SdfTest.java): distance and coverage math
+- [HarnessMod](harness-mod/src/main/java/lol/trq/helios/harness/mod/HarnessMod.java) and [Checks](harness-mod/src/main/java/lol/trq/helios/harness/mod/Checks.java): in-game use and checks
+
+## Optional
+
+- [Harness launcher](harness/src/main/java/lol/trq/helios/harness/DevLaunch.java): downloads and boots the game
+- [SECURITY](SECURITY.md), [CODE_OF_CONDUCT](CODE_OF_CONDUCT.md), [LICENSE](LICENSE)
