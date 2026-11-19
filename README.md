@@ -41,7 +41,7 @@ repositories {
     }
 }
 dependencies {
-    implementation 'lol.trq:lol.trq.helios:0.1.2'
+    implementation 'lol.trq:lol.trq.helios:0.1.3'
 }
 ```
 
@@ -147,7 +147,7 @@ sinks and the anchors; what is drawn at them is up to the caller.
 ### Clipping and your own GL work
 
 ```java
-MinecraftHelios.enableStencil(); // once: gives the main framebuffer a stencil buffer
+MinecraftHelios.enableStencil(); // gives the main framebuffer a stencil buffer; later calls do nothing
 helios.stencil().clip(
         () -> helios.shapes().begin(pixel).circle(40, 40, 24, Paint.solid(-1)).end(), // the mask
         true,                                                                          // keep the inside
