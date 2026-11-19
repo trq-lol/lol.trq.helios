@@ -252,7 +252,14 @@ public final class FakeGl implements GlBackend, GlStateCache {
     @Override
     public void drawArrays(int mode, int first, int count) {
         calls.add("drawArrays " + mode + " " + first + " " + count);
+        drawStates.add("fb=" + ints.getOrDefault(FRAMEBUFFER_BINDING, 0)
+                + " scissor=" + enabled.contains(SCISSOR_TEST)
+                + " stencil=" + enabled.contains(STENCIL_TEST)
+                + " colorMask=" + (colorWrite[0] && colorWrite[1] && colorWrite[2] && colorWrite[3]));
     }
+
+    /** The framebuffer, scissor, stencil and colour mask state at each {@link #drawArrays}. */
+    public final List<String> drawStates = new ArrayList<>();
 
     @Override
     public void activeTexture(int unit) {

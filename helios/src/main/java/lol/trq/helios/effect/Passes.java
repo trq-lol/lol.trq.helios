@@ -155,6 +155,7 @@ public final class Passes implements AutoCloseable {
             java.util.function.Consumer<ShaderProgram> uniforms) {
         try (StateGuard g = StateGuard.begin(gl, cache)) {
             g.framebuffer(target.id()).viewport(0, 0, target.width(), target.height());
+            offscreen(g);
             prepare(g, program, source.texture(), false);
             program.set("u_texel", 1f / source.width(), 1f / source.height());
             uniforms.accept(program);
@@ -165,11 +166,23 @@ public final class Passes implements AutoCloseable {
     private void pass(ShaderProgram program, int source, Framebuffer target, float offset, boolean additive) {
         try (StateGuard g = StateGuard.begin(gl, cache)) {
             g.framebuffer(target.id()).viewport(0, 0, target.width(), target.height());
+            offscreen(g);
             prepare(g, program, source, additive);
             program.set("u_halfPixel", 0.5f / target.width(), 0.5f / target.height());
             program.set("u_offset", offset);
             gl.drawArrays(GlBackend.TRIANGLES, 0, 3);
         }
+    }
+
+    /**
+     * Clears the caller's clipping and write masks for a pass into one of Helios's own framebuffers: a scissor box in
+     * screen pixels, a stencil test or a colour mask left off by the caller would corrupt the intermediate image. The
+     * final composite onto the caller's framebuffer keeps them, so masked effects still work.
+     */
+    static void offscreen(StateGuard g) {
+        g.scissor(false, 0, 0, 0, 0)
+                .stencil(false, GlBackend.ALWAYS, 0, 0xFF, GlBackend.KEEP, GlBackend.KEEP, GlBackend.KEEP, 0xFF)
+                .colorMask(true, true, true, true);
     }
 
     private void prepare(StateGuard g, ShaderProgram program, int texture, boolean additive) {

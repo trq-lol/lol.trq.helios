@@ -105,6 +105,7 @@ public final class Effects implements AutoCloseable {
         try {
             try (StateGuard g = StateGuard.begin(gl, cache)) {
                 g.framebuffer(glow.id()).viewport(0, 0, glow.width(), glow.height());
+                Passes.offscreen(g);
                 gl.clearColorTransparent();
                 sources.run();
             }

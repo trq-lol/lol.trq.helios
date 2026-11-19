@@ -99,4 +99,38 @@ class EffectsTest {
         helios.postChain().apply();
         assertEquals(before, gl.calls.size());
     }
+
+    /** A caller mid-way through its own stencil mask: scissor and stencil on, colour writes off. */
+    private void callerMasks() {
+        gl.setEnabled(GlBackend.SCISSOR_TEST, true);
+        gl.setEnabled(GlBackend.STENCIL_TEST, true);
+        gl.colorMask(false, false, false, false);
+    }
+
+    @Test
+    void blurPassesIgnoreTheCallersClipAndMasksButTheCompositeKeepsThem() {
+        callerMasks();
+        helios.effects().blurBehind(0, 0, 800, 600, 0, 1, 2, 2, -1);
+        assertTrue(gl.drawStates.size() > 1, gl.drawStates.toString());
+        for (String s : gl.drawStates) {
+            if (!s.startsWith("fb=0 ")) {
+                assertEquals("scissor=false stencil=false colorMask=true", s.substring(s.indexOf(' ') + 1), s);
+            }
+        }
+        assertTrue(gl.isEnabled(GlBackend.SCISSOR_TEST));
+        assertTrue(gl.isEnabled(GlBackend.STENCIL_TEST));
+    }
+
+    @Test
+    void bloomSourcesAndPassesDrawWithColourWritesOn() {
+        callerMasks();
+        boolean[] seen = new boolean[1];
+        helios.effects()
+                .bloom(() -> seen[0] = gl.drawStates.isEmpty() && !gl.isEnabled(GlBackend.STENCIL_TEST), 2, 2, 1);
+        assertTrue(seen[0], "the glow sources run with the stencil test off");
+        for (String s : gl.drawStates.subList(0, gl.drawStates.size() - 1)) {
+            assertEquals("scissor=false stencil=false colorMask=true", s.substring(s.indexOf(' ') + 1), s);
+        }
+        assertTrue(gl.isEnabled(GlBackend.STENCIL_TEST), "the caller's state comes back");
+    }
 }
