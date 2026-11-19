@@ -258,17 +258,17 @@ public final class AtlasBuilder {
      * @return the code points
      */
     public static int[] defaultCharset() {
-        List<Integer> cps = new ArrayList<>();
+        List<Integer> codepoints = new ArrayList<>();
         for (int c = 32; c < 127; c++) {
-            cps.add(c);
+            codepoints.add(c);
         }
         for (int c = 160; c < 256; c++) {
-            cps.add(c);
+            codepoints.add(c);
         }
         for (int c :
                 new int[] {0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2026, 0x20AC, 0x2122, 0xFFFD}) {
-            cps.add(c);
+            codepoints.add(c);
         }
-        return cps.stream().mapToInt(Integer::intValue).toArray();
+        return codepoints.stream().mapToInt(Integer::intValue).toArray();
     }
 }
