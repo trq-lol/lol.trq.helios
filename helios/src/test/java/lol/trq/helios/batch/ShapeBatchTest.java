@@ -205,4 +205,28 @@ class ShapeBatchTest {
         assertTrue(gl.liveBuffers.isEmpty());
         assertTrue(gl.livePrograms.isEmpty());
     }
+
+    @Test
+    void shapesWithNonFiniteCoordinatesAreDropped() {
+        float nan = Float.NaN;
+        float inf = Float.POSITIVE_INFINITY;
+        batch.begin(1)
+                .rect(nan, 0, 10, 10, 0, -1)
+                .rect(0, 0, inf, 10, 0, -1)
+                .outline(0, nan, 10, 10, 2, 1, Paint.solid(-1))
+                .circle(nan, nan, 4, Paint.solid(-1))
+                .arc(nan, 0, 4, 1, 0, 1, Paint.solid(-1))
+                .line(0, 0, nan, 10, 1, false, Paint.solid(-1))
+                .shadow(0, 0, nan, 10, 0, 2, -1)
+                .image(5, 0, 0, nan, 10, 0, 0, 0, 1, 1, -1)
+                .glyph(5, nan, 0, 4, 4, 0, 0, 0, 0, 1, 1, -1, 4, 0, 0, 64, 64)
+                .glyph(5, 0, 0, 4, 4, nan, 0, 0, 0, 1, 1, -1, 4, 0, 0, 64, 64)
+                .end();
+        assertTrue(gl.streamed.isEmpty(), "nothing is uploaded for shapes that cannot be placed");
+        assertEquals(0, batch.drawCalls());
+
+        batch.begin(1).rect(nan, 0, 10, 10, 0, -1).rect(0, 0, 10, 10, 0, -1).end();
+        assertEquals(1, batch.drawCalls());
+        assertEquals(4 * ShapeBatch.STRIDE, gl.streamed.get(0).remaining(), "only the finite rect is drawn");
+    }
 }

@@ -181,7 +181,7 @@ public final class ShapeBatch implements AutoCloseable {
             int atlasWidth,
             int atlasHeight) {
         requireDrawing();
-        if (x1 <= x0 || y1 <= y0) {
+        if (!(x1 > x0 && y1 > y0) || !Float.isFinite(x0 + y0 + x1 + y1 + skewTop + skewBottom)) {
             return this;
         }
         if (texture != 0 && texture != textureId) {
@@ -530,6 +530,10 @@ public final class ShapeBatch implements AutoCloseable {
             float u1,
             float v1) {
         requireDrawing();
+        // A NaN or infinite position reaches the GPU as a sliver across the screen; drop the shape instead.
+        if (!Float.isFinite(cx + cy + ax + ay + hw + hh + pad)) {
+            return;
+        }
         if (count == capacity) {
             flush();
         }
