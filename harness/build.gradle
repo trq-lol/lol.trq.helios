@@ -48,6 +48,16 @@ def fetchLazarus = tasks.register('fetchLazarus') {
     }
 }
 
+// System properties for the test mod: where reference images live, and whether to rewrite them (-PupdateReferences).
+def harnessJvmArgs = {
+    def refs = rootProject.layout.projectDirectory.dir('harness/references').asFile.absolutePath
+    def args = ["-Dhelios.harness.references=${refs}"]
+    if (project.hasProperty('updateReferences')) args << '-Dhelios.harness.updateReferences=true'
+    if (project.hasProperty('requireReferences')) args << '-Dhelios.harness.requireReferences=true'
+    if (project.hasProperty('jvmArgs')) args << project.property('jvmArgs')
+    args.join(' ')
+}
+
 def registerRun = { String name, int javaVersion ->
     tasks.register(name, JavaExec) {
         group = 'helios'
@@ -69,7 +79,7 @@ def registerRun = { String name, int javaVersion ->
                 "lwjgl3Jar=${lwjgl3Jar.asFile.absolutePath}",
                 "cache=${cacheDir.asFile.absolutePath}",
                 "gameDir=${runDir.absolutePath}",
-                "jvmArgs=${project.findProperty('jvmArgs') ?: ''}",
+                "jvmArgs=${harnessJvmArgs()}",
                 "timeout=${project.findProperty('timeout') ?: '300'}",
             ]
         }

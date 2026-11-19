@@ -8,12 +8,18 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 import javax.imageio.ImageIO;
 import lol.trq.helios.Helios;
+import lol.trq.helios.batch.Paint;
+import lol.trq.helios.batch.ShapeBatch;
+import lol.trq.helios.effect.Passes;
 import lol.trq.helios.fbo.Framebuffer;
-import lol.trq.helios.fbo.FramebufferPool;
 import lol.trq.helios.minecraft.MinecraftGlStateCache;
-import lol.trq.helios.sdf.Sdf;
+import lol.trq.helios.shader.ShaderLoader;
+import lol.trq.helios.shader.ShaderProgram;
+import lol.trq.helios.shader.SourceResolver;
 import lol.trq.helios.state.GlStateCache;
 import lol.trq.helios.state.StateGuard;
 import org.lwjgl.BufferUtils;
@@ -22,13 +28,26 @@ import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 
-/** The in-game checks: pixels against the Java SDF model, GL state before and after, cache coherence, the FBO pool. */
+/**
+ * The in-game checks: every primitive against the software {@link Model}, batching, blur and bloom against reference
+ * images, the post-processing chain and scissor offscreen, GL state before and after, and cache coherence.
+ */
 final class Checks {
-    /** The measured rect. Fractional edges so the anti-aliased band has partial pixels at any GUI scale. */
-    static final float[] TEST = {12.25f, 12.3f, 120.4f, 48.3f, 12f};
+    private static final int TOLERANCE = 3;
+    private static final float PI = (float) Math.PI;
 
-    static final int TEST_COLOR = 0xFF3B82F6;
-    private static final int TOLERANCE = 6;
+    /** A test shape: its model and how to draw it. */
+    record TestShape(Model.Shape model, Consumer<ShapeBatch> draw) {}
+
+    static final List<TestShape> SHAPES = shapes();
+
+    /** Blur region: checkerboard, then a frosted rounded rect inside it. */
+    static final float[] BLUR_REGION = {2, 96, 140, 100};
+
+    /** Bloom region: dark panel, glowing shapes. */
+    static final float[] BLOOM_REGION = {290, 96, 135, 100};
+
+    private static ShaderProgram invert;
 
     private final Helios helios;
     private final HarnessMod.Frame frame;
@@ -41,55 +60,149 @@ final class Checks {
         this.out = out;
     }
 
+    private static List<TestShape> shapes() {
+        List<TestShape> list = new ArrayList<>();
+        int[] quad = {0xFFE53935, 0xFF43A047, 0xFF1E88E5, 0xFFFDD835};
+        list.add(new TestShape(
+                box("rect-corners", 8, 8, 60, 30, 8, Model.Kind.RECT, 0, quad, 0),
+                b -> b.rect(8, 8, 60, 30, 8, Paint.corners(quad[0], quad[1], quad[2], quad[3]))));
+        int[] white = solid(0xFFFFFFFF);
+        list.add(new TestShape(
+                box("outline", 76, 8, 60, 30, 8, Model.Kind.RECT, 2.5f, white, 0),
+                b -> b.outline(76, 8, 60, 30, 8, 2.5f, Paint.solid(0xFFFFFFFF))));
+        int[] radial = {0xFFFFFFFF, 0xFF2050FF, 0xFF2050FF, 0xFF2050FF};
+        list.add(new TestShape(
+                box("circle-radial", 145, 8, 30, 30, 15, Model.Kind.RECT, 0, radial, 15),
+                b -> b.circle(160, 23, 15, Paint.radial(0xFFFFFFFF, 0xFF2050FF, 15))));
+        int[] orange = solid(0xFFFF8040);
+        float start = -PI / 2;
+        float sweep = 4.2f;
+        list.add(new TestShape(
+                new Model.Shape("arc", 200, 23, 1, 0, 15, 15, 0, Model.Kind.ARC, 4, start, sweep, orange, 0),
+                b -> b.arc(200, 23, 15, 4, start, sweep, Paint.solid(0xFFFF8040))));
+        float x0 = 222;
+        float y0 = 10;
+        float x1 = 270;
+        float y1 = 36;
+        float len = (float) Math.hypot(x1 - x0, y1 - y0);
+        int[] lineColors = {0xFF00FFAA, 0xFFAA00FF, 0xFFAA00FF, 0xFF00FFAA};
+        list.add(new TestShape(
+                new Model.Shape(
+                        "line",
+                        (x0 + x1) / 2,
+                        (y0 + y1) / 2,
+                        (x1 - x0) / len,
+                        (y1 - y0) / len,
+                        len / 2 + 1.5f,
+                        1.5f,
+                        1.5f,
+                        Model.Kind.RECT,
+                        0,
+                        0,
+                        0,
+                        lineColors,
+                        0),
+                b -> b.line(x0, y0, x1, y1, 3, true, Paint.horizontal(0xFF00FFAA, 0xFFAA00FF))));
+        int[] shadow = solid(0x99000000);
+        list.add(new TestShape(
+                box("shadow", 285, 10, 40, 26, 6, Model.Kind.SHADOW, 5, shadow, 0),
+                b -> b.shadow(285, 10, 40, 26, 6, 5, 0x99000000)));
+        int[] glow = solid(0xFFFFAA00);
+        list.add(new TestShape(
+                box("glow", 340, 8, 60, 30, 8, Model.Kind.GLOW, 6, glow, 0),
+                b -> b.innerGlow(340, 8, 60, 30, 8, 6, 0xFFFFAA00)));
+        int[] translucent = solid(0x8040C0FF);
+        list.add(new TestShape(
+                box("translucent", 8, 44, 60, 20, 10, Model.Kind.RECT, 0, translucent, 0),
+                b -> b.rect(8, 44, 60, 20, 10, 0x8040C0FF)));
+        return List.copyOf(list);
+    }
+
+    private static Model.Shape box(
+            String name,
+            float x,
+            float y,
+            float w,
+            float h,
+            float r,
+            Model.Kind kind,
+            float param,
+            int[] c,
+            float rad) {
+        return new Model.Shape(name, x + w / 2, y + h / 2, 1, 0, w / 2, h / 2, r, kind, param, 0, 0, c, rad);
+    }
+
+    private static int[] solid(int argb) {
+        return new int[] {argb, argb, argb, argb};
+    }
+
     static String glInfo() {
         return "\"" + GL11.glGetString(GL11.GL_VERSION) + " / " + GL11.glGetString(GL11.GL_RENDERER) + "\"";
     }
 
-    /** Draws the whole scene: the measured rect and the demo shapes. */
+    /** Draws the whole scene. */
     static void drawScene(Helios helios, HarnessMod.Frame frame) {
-        drawTest(helios, frame);
-        drawDemo(helios, frame);
+        ShapeBatch b = helios.shapes().begin(frame.pixel());
+        for (TestShape s : SHAPES) {
+            s.draw.accept(b);
+        }
+        b.end();
+        drawBlurScene(helios, frame);
+        drawBloomScene(helios, frame);
     }
 
-    private static void drawTest(Helios helios, HarnessMod.Frame frame) {
+    private static void drawBlurScene(Helios helios, HarnessMod.Frame frame) {
+        float[] r = BLUR_REGION;
+        ShapeBatch b = helios.shapes().begin(frame.pixel());
+        int[] palette = {0xFFE53935, 0xFFFDD835, 0xFF1E88E5, 0xFFFFFFFF, 0xFF212121};
+        for (int row = 0; row * 10 < r[3]; row++) {
+            for (int col = 0; col * 10 < r[2]; col++) {
+                b.rect(r[0] + col * 10, r[1] + row * 10, 10, 10, 0, palette[(col + row * 2) % palette.length]);
+            }
+        }
+        b.end();
+        helios.effects().blurBehind(32, 126, 80, 40, 10, frame.pixel(), 2, 2, 0xFFFFFFFF);
         helios.shapes()
                 .begin(frame.pixel())
-                .rect(TEST[0], TEST[1], TEST[2], TEST[3], TEST[4], TEST_COLOR)
+                .outline(32, 126, 80, 40, 10, 1, Paint.solid(0x80FFFFFF))
                 .end();
     }
 
-    private static void drawDemo(Helios helios, HarnessMod.Frame frame) {
-        float px = frame.pixel();
-        helios.shapes().begin(px).rect(12, 70, 120, 24, 99, 0x80FF4060).end();
-        helios.shapes().begin(px).rect(144, 12, 48, 48, 24, 0xFFF59E0B).end();
+    private static void drawBloomScene(Helios helios, HarnessMod.Frame frame) {
+        float[] r = BLOOM_REGION;
         helios.shapes()
-                .begin(px)
-                .rect(144.3f, 70.6f, 47.5f, 23.2f, 6, 0xFF10B981)
+                .begin(frame.pixel())
+                .rect(r[0], r[1], r[2], r[3], 0, 0xFF101018)
                 .end();
-        helios.shapes().begin(px).rect(204, 12, 2.5f, 82, 1.25f, 0xFFFFFFFF).end();
+        Runnable sources = () -> helios.shapes()
+                .begin(frame.pixel())
+                .circle(330, 146, 12, Paint.solid(0xFFFF3060))
+                .rect(360, 132, 40, 28, 6, Paint.vertical(0xFF30A0FF, 0xFF80FFE0))
+                .end();
+        helios.effects().bloom(sources, 3, 1.5f, 1.2f);
+        sources.run();
     }
 
     boolean run() {
         out.mkdirs();
         String before = State.capture().toString();
 
-        int[] box = testBox();
-        ByteBuffer under = read(box);
-        drawTest(helios, frame);
-        ByteBuffer over = read(box);
-        comparePixels(box, under, over);
+        for (TestShape s : SHAPES) {
+            checkShape(s);
+        }
+        drawBlurScene(helios, frame);
+        compareReference("blur", BLUR_REGION);
+        drawBloomScene(helios, frame);
+        compareReference("bloom", BLOOM_REGION);
+        String afterOnScreen = State.capture().toString();
+        expect("state unchanged by on-screen drawing", before.equals(afterOnScreen), before + " -> " + afterOnScreen);
 
-        String afterDraw = State.capture().toString();
-        expect("state unchanged by a draw", before.equals(afterDraw), before + " -> " + afterDraw);
-
-        checkFramebufferPool();
-        String afterFbo = State.capture().toString();
-        expect("state unchanged by an offscreen draw", before.equals(afterFbo), before + " -> " + afterFbo);
+        checkOffscreen();
+        String afterOffscreen = State.capture().toString();
+        expect("state unchanged by offscreen drawing", before.equals(afterOffscreen), before + " -> " + afterOffscreen);
 
         checkCacheCoherence();
-
-        drawDemo(helios, frame);
-        screenshots(box);
+        screenshots();
 
         boolean ok = failures.isEmpty();
         System.out.println("HELIOS-HARNESS " + (ok ? "OK" : "FAIL") + " java=" + System.getProperty("java.version")
@@ -98,120 +211,198 @@ final class Checks {
         return ok;
     }
 
-    /** Framebuffer pixel box around the test rect, with a margin: {x, y, w, h}, y from the bottom. */
-    private int[] testBox() {
+    /** Framebuffer pixel box for GUI bounds: {x, y, w, h}, y from the bottom. */
+    private int[] pixelBox(float x0, float y0, float x1, float y1) {
         float p = frame.pixel();
-        int x0 = (int) Math.floor(TEST[0] / p) - 3;
-        int x1 = (int) Math.ceil((TEST[0] + TEST[2]) / p) + 3;
-        int top = (int) Math.floor(TEST[1] / p) - 3;
-        int bottom = (int) Math.ceil((TEST[1] + TEST[3]) / p) + 3;
-        return new int[] {x0, frame.fbHeight() - bottom, x1 - x0, bottom - top};
+        int left = Math.max(0, (int) Math.floor(x0 / p));
+        int right = Math.min(frame.fbWidth(), (int) Math.ceil(x1 / p));
+        int top = Math.max(0, (int) Math.floor(y0 / p));
+        int bottom = Math.min(frame.fbHeight(), (int) Math.ceil(y1 / p));
+        return new int[] {left, frame.fbHeight() - bottom, right - left, bottom - top};
     }
 
-    private void comparePixels(int[] box, ByteBuffer under, ByteBuffer over) {
+    private void checkShape(TestShape s) {
+        Model.Shape m = s.model;
+        float[] bounds = m.bounds(2 * frame.pixel());
+        int[] box = pixelBox(bounds[0], bounds[1], bounds[2], bounds[3]);
+        ByteBuffer under = read(box);
+        ShapeBatch batch = helios.shapes().begin(frame.pixel());
+        s.draw.accept(batch);
+        batch.end();
+        ByteBuffer over = read(box);
         float p = frame.pixel();
-        float hw = TEST[2] / 2;
-        float hh = TEST[3] / 2;
-        float cx = TEST[0] + hw;
-        float cy = TEST[1] + hh;
-        float[] c = rgb(TEST_COLOR);
         int maxErr = 0;
+        String worst = "";
         int partial = 0;
-        int inside = 0;
-        int untouchedWrong = 0;
+        int outsideChanged = 0;
         for (int row = 0; row < box[3]; row++) {
             for (int col = 0; col < box[2]; col++) {
                 float gx = (box[0] + col + 0.5f) * p;
                 float gy = (frame.fbHeight() - (box[1] + row) - 0.5f) * p;
-                float d = Sdf.roundedRect(gx - cx, gy - cy, hw, hh, TEST[4]) / p;
-                float cov = Sdf.coverage(d, 1f);
+                float[] c = m.shade(gx, gy, p);
+                float a = c[3];
                 int i = (row * box[2] + col) * 4;
                 for (int ch = 0; ch < 3; ch++) {
                     int bg = under.get(i + ch) & 0xFF;
                     int got = over.get(i + ch) & 0xFF;
-                    float expected = bg * (1 - cov) + c[ch] * 255f * cov;
+                    float expected = bg * (1 - a) + c[ch] * 255f * a;
                     int err = Math.round(Math.abs(got - expected));
-                    maxErr = Math.max(maxErr, err);
-                    if (cov == 0f && got != bg) {
-                        untouchedWrong++;
+                    if (err > maxErr) {
+                        maxErr = err;
+                        worst = String.format(
+                                "at (%.2f, %.2f) ch%d a=%.3f bg=%d got=%d want=%.1f", gx, gy, ch, a, bg, got, expected);
+                    }
+                    if (a == 0f && got != bg) {
+                        outsideChanged++;
                     }
                 }
-                if (cov > 0f && cov < 1f) {
+                if (a > 0f && a < 1f) {
                     partial++;
-                } else if (cov == 1f) {
-                    inside++;
                 }
             }
         }
-        int band = bandWidth(box, under, over);
-        System.out.println("HELIOS-HARNESS pixels maxError=" + maxErr + "/255 inside=" + inside + " partial=" + partial
-                + " outsideChanged=" + untouchedWrong + " edgeBand=" + band + "px");
-        expect("pixels match the SDF model within " + TOLERANCE + "/255", maxErr <= TOLERANCE, "max " + maxErr);
-        expect("nothing drawn outside the feather", untouchedWrong == 0, untouchedWrong + " channels");
-        expect("edge band at most 2 px wide", band >= 1 && band <= 2, band + " px");
+        System.out.println("HELIOS-HARNESS shape " + m.name() + " maxError=" + maxErr + "/255 pixels="
+                + (box[2] * box[3]) + " partial=" + partial + " outsideChanged=" + outsideChanged + " worst " + worst);
+        expect(m.name() + " matches the model within " + TOLERANCE + "/255", maxErr <= TOLERANCE, "max " + maxErr);
+        expect(m.name() + " draws nothing outside its coverage", outsideChanged == 0, outsideChanged + " channels");
     }
 
-    /** Partial pixels where the middle row crosses the left edge. */
-    private static int bandWidth(int[] box, ByteBuffer under, ByteBuffer over) {
-        int row = box[3] / 2;
-        int[] target = {0x3B, 0x82, 0xF6};
-        int count = 0;
-        for (int col = 0; col < box[2] / 2; col++) {
-            int i = (row * box[2] + col) * 4;
-            boolean isBg = true;
-            boolean isFg = true;
-            for (int ch = 0; ch < 3; ch++) {
-                int got = over.get(i + ch) & 0xFF;
-                isBg &= Math.abs(got - (under.get(i + ch) & 0xFF)) <= 1;
-                isFg &= Math.abs(got - target[ch]) <= 1;
+    private void compareReference(String name, float[] region) {
+        int[] box = pixelBox(region[0], region[1], region[0] + region[2], region[1] + region[3]);
+        BufferedImage actual = image(read(box), box[2], box[3], 0, 0, box[2], box[3], 1);
+        String file = name + "-" + frame.fbWidth() + "x" + frame.fbHeight() + ".png";
+        try {
+            ImageIO.write(actual, "png", new File(out, file));
+            String dir = System.getProperty("helios.harness.references", "");
+            if (dir.isEmpty()) {
+                System.out.println("HELIOS-HARNESS reference " + name + " skipped: no reference directory");
+                return;
             }
-            if (!isBg && !isFg) {
-                count++;
+            File ref = new File(dir, file);
+            if (Boolean.getBoolean("helios.harness.updateReferences")) {
+                ref.getParentFile().mkdirs();
+                ImageIO.write(actual, "png", ref);
+                System.out.println("HELIOS-HARNESS reference " + name + " updated " + ref.getName());
+                return;
+            }
+            if (!ref.isFile()) {
+                boolean required = Boolean.getBoolean("helios.harness.requireReferences");
+                System.out.println("HELIOS-HARNESS reference " + name + " missing for this size: " + file);
+                expect(name + " reference exists", !required, file);
+                return;
+            }
+            BufferedImage expected = ImageIO.read(ref);
+            if (expected.getWidth() != actual.getWidth() || expected.getHeight() != actual.getHeight()) {
+                expect(name + " reference size", false, "reference has another size");
+                return;
+            }
+            long sum = 0;
+            int[] histogram = new int[256];
+            int n = 0;
+            for (int y = 0; y < actual.getHeight(); y++) {
+                for (int x = 0; x < actual.getWidth(); x++) {
+                    int a = actual.getRGB(x, y);
+                    int e = expected.getRGB(x, y);
+                    for (int shift = 0; shift < 24; shift += 8) {
+                        int d = Math.abs(((a >>> shift) & 0xFF) - ((e >>> shift) & 0xFF));
+                        sum += d;
+                        histogram[d]++;
+                        n++;
+                    }
+                }
+            }
+            double mean = sum / (double) n;
+            int p999 = percentile(histogram, n, 0.999);
+            System.out.println("HELIOS-HARNESS reference " + name + " meanError=" + String.format("%.3f", mean)
+                    + " p99.9=" + p999);
+            expect(name + " matches its reference", mean <= 2.0 && p999 <= 16, "mean " + mean + " p99.9 " + p999);
+        } catch (IOException e) {
+            expect(name + " reference readable", false, e.toString());
+        }
+    }
+
+    private static int percentile(int[] histogram, int n, double q) {
+        long seen = 0;
+        for (int i = 0; i < histogram.length; i++) {
+            seen += histogram[i];
+            if (seen >= n * q) {
+                return i;
             }
         }
-        return count;
+        return 255;
     }
 
-    private void checkFramebufferPool() {
-        FramebufferPool pool = helios.framebuffers();
-        Framebuffer fb = pool.acquireScreen(1, false);
+    private void checkOffscreen() {
+        Framebuffer fb = helios.framebuffers().acquireScreen(1, false);
         expect(
                 "pooled framebuffer matches the window framebuffer",
                 fb.width() == frame.fbWidth() && fb.height() == frame.fbHeight(),
                 fb.width() + "x" + fb.height());
-        int[] centre = {
-            Math.round((TEST[0] + TEST[2] / 2) / frame.pixel()),
-            frame.fbHeight() - Math.round((TEST[1] + TEST[3] / 2) / frame.pixel())
-        };
-        int[] corner = {
-            (int) Math.floor(TEST[0] / frame.pixel()) + 1,
-            frame.fbHeight() - (int) Math.floor(TEST[1] / frame.pixel()) - 2
-        };
-        ByteBuffer px;
-        ByteBuffer cornerPx;
+        float p = frame.pixel();
         try (StateGuard g = helios.guard()) {
             g.framebuffer(fb.id()).viewport(0, 0, fb.width(), fb.height());
+
             helios.gl().clearColorTransparent();
-            drawTest(helios, frame);
-            px = read(new int[] {centre[0], centre[1], 1, 1});
-            cornerPx = read(new int[] {corner[0], corner[1], 1, 1});
+            int calls = helios.shapes().drawCalls();
+            ShapeBatch b = helios.shapes().begin(p);
+            for (TestShape s : SHAPES) {
+                s.draw.accept(b);
+            }
+            b.end();
+            expect(
+                    SHAPES.size() + " shapes in one draw call",
+                    helios.shapes().drawCalls() == calls + 1,
+                    (helios.shapes().drawCalls() - calls) + " calls");
+
+            helios.gl().clearColorTransparent();
+            helios.shapes().begin(p).rect(10, 10, 40, 40, 0, 0xFF204060).end();
+            helios.postChain().then(invertProgram(), prog -> {}).apply();
+            int[] inverted = pixel(30, 30);
+            expect(
+                    "post chain inverts colour",
+                    close(inverted, new int[] {0xDF, 0xBF, 0x9F, 0xFF}),
+                    Arrays.toString(inverted));
+
+            helios.gl().clearColorTransparent();
+            helios.scissor().push(100, 10, 20, 20, p);
+            helios.shapes().begin(p).rect(90, 0, 60, 60, 0, 0xFFFFFFFF).end();
+            helios.scissor().pop();
+            int[] inside = pixel(110, 20);
+            int[] outside = pixel(95, 5);
+            expect("scissor keeps the inside", close(inside, new int[] {255, 255, 255, 255}), Arrays.toString(inside));
+            expect("scissor clips the outside", outside[3] == 0, Arrays.toString(outside));
+            expect("scissor test restored", !GL11.glIsEnabled(GL11.GL_SCISSOR_TEST), "still enabled");
         }
-        pool.release(fb);
-        Framebuffer again = pool.acquireScreen(1, false);
+        helios.framebuffers().release(fb);
         expect(
-                "pool reuses a released framebuffer",
-                again == fb && pool.createdCount() == 1,
-                "created " + pool.createdCount());
-        pool.release(again);
-        int[] got = {px.get(0) & 0xFF, px.get(1) & 0xFF, px.get(2) & 0xFF, px.get(3) & 0xFF};
-        expect(
-                "offscreen centre is the fill colour",
-                Arrays.equals(got, new int[] {0x3B, 0x82, 0xF6, 0xFF}),
-                Arrays.toString(got));
-        expect(
-                "offscreen corner outside the radius is clear",
-                (cornerPx.get(3) & 0xFF) == 0,
-                "alpha " + (cornerPx.get(3) & 0xFF));
+                "no framebuffer left lent out",
+                helios.framebuffers().lentCount() == 0,
+                "lent " + helios.framebuffers().lentCount());
+    }
+
+    private ShaderProgram invertProgram() {
+        if (invert == null) {
+            SourceResolver mine = SourceResolver.classpath(Checks.class.getClassLoader(), "helios-harness");
+            invert = new ShaderLoader(helios.gl(), mine.or(Helios.builtinShaders()), Helios.GLSL_VERSION)
+                    .load(Passes.FULLSCREEN_VERTEX, "invert.fsh", Map.of());
+        }
+        return invert;
+    }
+
+    private int[] pixel(float gx, float gy) {
+        int x = (int) (gx / frame.pixel());
+        int y = frame.fbHeight() - 1 - (int) (gy / frame.pixel());
+        ByteBuffer b = read(new int[] {x, y, 1, 1});
+        return new int[] {b.get(0) & 0xFF, b.get(1) & 0xFF, b.get(2) & 0xFF, b.get(3) & 0xFF};
+    }
+
+    private static boolean close(int[] a, int[] b) {
+        for (int i = 0; i < a.length; i++) {
+            if (Math.abs(a[i] - b[i]) > 2) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -230,6 +421,14 @@ final class Checks {
             boolean back = GL11.glIsEnabled(caps[k]);
             expect("GlStateManager cache coherent for " + names[k], flipped == !orig && back == orig, "orig=" + orig);
         }
+        int bound = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+        int probe = GL11.glGenTextures();
+        gsm.bindTexture(probe);
+        boolean took = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D) == probe;
+        gsm.bindTexture(bound);
+        boolean back = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D) == bound;
+        GL11.glDeleteTextures(probe);
+        expect("GlStateManager cache coherent for the bound texture", took && back, "took=" + took + " back=" + back);
     }
 
     private static void set(GlStateCache gsm, int k, boolean on) {
@@ -242,26 +441,30 @@ final class Checks {
         }
     }
 
-    private void screenshots(int[] box) {
+    private void screenshots() {
         int w = frame.fbWidth();
         int h = frame.fbHeight();
         ByteBuffer all = read(new int[] {0, 0, w, h});
-        BufferedImage full = image(all, w, h, 0, 0, w, h, 1);
-        int cw = Math.min(32, box[2]);
-        int ch = Math.min(32, box[3]);
-        int cx = box[0];
-        int cy = h - (box[1] + box[3]);
-        BufferedImage corner = image(all, w, h, cx, cy, cw, ch, 12);
         try {
             File menu = new File(out, "menu.png");
-            File zoom = new File(out, "corner-12x.png");
-            ImageIO.write(full, "png", menu);
-            ImageIO.write(corner, "png", zoom);
+            ImageIO.write(image(all, w, h, 0, 0, w, h, 1), "png", menu);
             System.out.println("HELIOS-HARNESS screenshot " + menu.getAbsolutePath());
-            System.out.println("HELIOS-HARNESS screenshot " + zoom.getAbsolutePath());
+            zoom(all, "zoom-arc.png", 196, 4, 24, 16);
+            zoom(all, "zoom-line.png", 220, 6, 20, 14);
+            zoom(all, "zoom-corners.png", 4, 4, 20, 14);
         } catch (IOException e) {
             failures.add("screenshot: " + e);
         }
+    }
+
+    private void zoom(ByteBuffer all, String name, float gx, float gy, float gw, float gh) throws IOException {
+        float p = frame.pixel();
+        int x = (int) (gx / p);
+        int y = (int) (gy / p);
+        BufferedImage img = image(all, frame.fbWidth(), frame.fbHeight(), x, y, (int) (gw / p), (int) (gh / p), 10);
+        File f = new File(out, name);
+        ImageIO.write(img, "png", f);
+        System.out.println("HELIOS-HARNESS screenshot " + f.getAbsolutePath());
     }
 
     /** Builds an image from a bottom-up RGBA readback; x, y are top-down. */
@@ -287,16 +490,12 @@ final class Checks {
     }
 
     private static ByteBuffer read(int[] box) {
-        ByteBuffer buf = BufferUtils.createByteBuffer(box[2] * box[3] * 4);
+        ByteBuffer buf = BufferUtils.createByteBuffer(Math.max(1, box[2] * box[3] * 4));
         int align = GL11.glGetInteger(GL11.GL_PACK_ALIGNMENT);
         GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 1);
         GL11.glReadPixels(box[0], box[1], box[2], box[3], GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf);
         GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, align);
         return buf;
-    }
-
-    private static float[] rgb(int argb) {
-        return new float[] {((argb >> 16) & 0xFF) / 255f, ((argb >> 8) & 0xFF) / 255f, (argb & 0xFF) / 255f};
     }
 
     private void expect(String what, boolean ok, String detail) {
@@ -319,10 +518,13 @@ final class Checks {
             boolean depthTest,
             boolean depthMask,
             boolean texture2D,
+            boolean scissor,
             int program,
             int framebuffer,
             int activeTexture,
+            int texture,
             int arrayBuffer,
+            String attribs,
             String viewport,
             String color) {
         static State capture() {
@@ -330,6 +532,10 @@ final class Checks {
             GL11.glGetIntegerv(GL11.GL_VIEWPORT, vp);
             float[] col = new float[4];
             GL11.glGetFloatv(GL11.GL_CURRENT_COLOR, col);
+            StringBuilder attribs = new StringBuilder();
+            for (int i = 0; i < 9; i++) {
+                attribs.append(GL20.glGetVertexAttribi(i, GL20.GL_VERTEX_ATTRIB_ARRAY_ENABLED) != 0 ? '1' : '0');
+            }
             return new State(
                     GL11.glIsEnabled(GL11.GL_BLEND),
                     GL11.glGetInteger(0x80C9),
@@ -341,10 +547,13 @@ final class Checks {
                     GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
                     GL11.glGetInteger(GL11.GL_DEPTH_WRITEMASK) != 0,
                     GL11.glIsEnabled(GL11.GL_TEXTURE_2D),
+                    GL11.glIsEnabled(GL11.GL_SCISSOR_TEST),
                     GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM),
                     GL11.glGetInteger(0x8CA6),
                     GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE),
+                    GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D),
                     GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING),
+                    attribs.toString(),
                     Arrays.toString(vp),
                     Arrays.toString(col));
         }
