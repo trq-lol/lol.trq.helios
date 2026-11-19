@@ -144,13 +144,6 @@ public final class Paint {
      * @return the mixed colour
      */
     public static int lerp(int a, int b, float t) {
-        float k = Math.min(Math.max(t, 0f), 1f);
-        int out = 0;
-        for (int shift = 0; shift < 32; shift += 8) {
-            int ca = (a >>> shift) & 0xFF;
-            int cb = (b >>> shift) & 0xFF;
-            out |= Math.round(ca + (cb - ca) * k) << shift;
-        }
-        return out;
+        return lol.trq.helios.color.Colors.lerp(a, b, t);
     }
 }
