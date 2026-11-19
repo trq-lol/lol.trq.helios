@@ -99,7 +99,7 @@ Text is drawn from a multi-channel signed distance field atlas, so it stays shar
 bundled font is [Inter](https://github.com/rsms/inter) Regular. To use another font, build an atlas with the
 `fontgen` module and load it with `MsdfFont.read`:
 
-```
+```sh
 ./gradlew :fontgen:run --args="--font MyFont.ttf --out myfont.hfnt --size 40 --range 4 --png preview.png"
 ```
 
@@ -188,7 +188,7 @@ try (StateGuard g = helios.guard()) {
 
 ## Building and testing
 
-```
+```sh
 ./gradlew spotlessCheck build        # unit tests, no GL needed; also builds the font atlas
 ./gradlew :helios:jmh                # CPU benchmarks, see BENCHMARKS.md
 ./gradlew :harness:runHarness25 -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"
