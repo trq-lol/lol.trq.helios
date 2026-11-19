@@ -411,16 +411,15 @@ public final class DevLaunch {
     }
 
     private static void writeMutedOptions(Path gameDir) throws IOException {
-        // Rewritten every launch: muted, framebuffers on, no splash screen, and no view bobbing so the camera looks
+        // Rewritten every launch: muted, framebuffers on, the splash screen on, and no view bobbing so the camera looks
         // exactly where the player faces (the world projection check depends on it).
         Path options = gameDir.resolve("options.txt");
         Files.writeString(options, "soundCategory_master:0.0\nmusicVolume:0.0\nfboEnable:true\nbobView:false\n");
-        // Forge's splash screen draws from a second thread on a shared context. Lazarus 0.4.1 reports no GL errors
-        // from it, but its emulator still shares the matrix mode and stacks between threads, and with the splash on
-        // the world projection check intermittently reads corrupted matrices. Off until a Lazarus release fixes that.
+        // Forge's splash screen draws from a second thread on a shared context; keep it on so core mode is tested
+        // with it. Written every launch because OptiFine rewrites it to false.
         Path splash = gameDir.resolve("config/splash.properties");
         Files.createDirectories(splash.getParent());
-        Files.writeString(splash, "enabled=false\n");
+        Files.writeString(splash, "enabled=true\n");
     }
 
     private static JsonObject json(Path file) throws IOException {

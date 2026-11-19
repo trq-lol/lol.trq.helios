@@ -201,7 +201,7 @@ try (StateGuard g = helios.guard()) {
 ```
 
 The harness downloads Minecraft 1.8.9 and Forge into `.harness-cache/`, boots the game on LWJGL 3 in Lazarus core
-mode with sound muted and the splash screen off, and loads a test mod. It uses the checksummed Lazarus release jar;
+mode with sound muted and Forge's splash screen on, and loads a test mod. It uses the checksummed Lazarus release jar;
 `-PlazarusJar=<jar>` runs a local Lazarus build instead. With `-Dlazarus.gl.debug=true` any `[lazarus] GL error` line fails the run. On the main menu the mod:
 
 - draws every primitive and compares each pixel around it with a software model of the shader (within 3/255);
