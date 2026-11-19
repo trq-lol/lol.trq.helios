@@ -102,4 +102,5 @@ The harness runs only in core mode:
 Core mode ships in Lazarus 0.2.0; the harness downloads the 0.3.0 release, and `-PlazarusJar=<jar>` runs a local build
 instead. With debug on, Lazarus prints every
 driver GL error with its Java call site as `[lazarus] GL error: ...`; the harness fails the run on any such line.
-CI does the same under Xvfb with Mesa, whose llvmpipe supports core 4.5.
+CI does the same under Xvfb with Mesa, whose llvmpipe supports core 4.5. With OptiFine
+(`-Poptifine=<jar>`, local only), `-PfastRender` turns its Fast Render on for the run; every check must still pass.

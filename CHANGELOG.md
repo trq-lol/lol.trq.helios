@@ -5,6 +5,11 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `MinecraftOptiFine`: whether OptiFine is installed, its version, and its Fast Render option, by reflection. Helios's
+  drawing works with Fast Render on; the harness checks it with `-Poptifine=<jar> -PfastRender`.
+
 ### Changed
 
 - The harness runs on the Lazarus 0.3.0 release.

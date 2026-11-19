@@ -31,7 +31,7 @@ Status: early development (milestone H3.5), nothing released yet. See [CHANGELOG
 | `color` | `Colors`: packed ARGB maths, HSB and HSL, sRGB, linear-light and hue interpolation, rainbow and ping-pong over time, hex parsing, readable text colour |
 | `anim` | `Easing` curves, `Animation` (reversible mid-flight), `Smooth` (frame-rate independent damping), `Stopwatch` |
 | `math` | `Maths` (clamp, remap, angles, rounding, Gaussian kernels), `Mat4` (column-major, allocation-free), `Projector` (world to screen, 2D boxes for ESP) |
-| `minecraft` | The only package that knows Minecraft: `GlStateManager` routing, the window size, stencil, `MinecraftWorld` (partial ticks, camera, interpolated entity positions and boxes) and `MinecraftPlayerPose` (a player's pose for the frame), by reflection |
+| `minecraft` | The only package that knows Minecraft: `GlStateManager` routing, the window size, stencil, `MinecraftWorld` (partial ticks, camera, interpolated entity positions and boxes) `MinecraftPlayerPose` (a player's pose for the frame) and `MinecraftOptiFine` (presence, version and Fast Render), by reflection |
 
 No Mixin. Minecraft is reached only from `lol.trq.helios.minecraft`, so the rest of Helios builds and tests without
 the game.
@@ -216,7 +216,8 @@ exact screen centre, and the player's interpolated position must sit on the came
 checks the head anchor sits 1.882 blocks above the feet, and draws through every mesh sink and a static mesh at the
 anchors. The harness turns view bobbing
 off for this. It opens a game window while it
-runs. OptiFine cannot be redistributed: point `-Poptifine` at a local copy. CI runs the harness in core mode on Linux under a virtual display with Mesa's software OpenGL (core 4.5).
+runs. OptiFine cannot be redistributed: point `-Poptifine` at a local copy; add `-PfastRender` to run every check with
+OptiFine's Fast Render on, which Helios supports. CI runs the harness in core mode on Linux under a virtual display with Mesa's software OpenGL (core 4.5).
 
 ## For AI agents
 

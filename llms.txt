@@ -45,6 +45,7 @@
 - [QuadSink](helios/src/main/java/lol/trq/helios/mesh/QuadSink.java), [LineSink](helios/src/main/java/lol/trq/helios/mesh/LineSink.java), [TexturedSink](helios/src/main/java/lol/trq/helios/mesh/TexturedSink.java): the vertex sinks
 - [MeshRecorder](helios/src/main/java/lol/trq/helios/mesh/MeshRecorder.java) and [StaticMesh](helios/src/main/java/lol/trq/helios/mesh/StaticMesh.java): meshes uploaded once
 - [PlayerModel](helios/src/main/java/lol/trq/helios/model/PlayerModel.java), [PlayerPose](helios/src/main/java/lol/trq/helios/model/PlayerPose.java), [Attachment](helios/src/main/java/lol/trq/helios/model/Attachment.java): player-model anchors
+- [MinecraftOptiFine](helios/src/main/java/lol/trq/helios/minecraft/MinecraftOptiFine.java): OptiFine presence, version, Fast Render
 - [MinecraftPlayerPose](helios/src/main/java/lol/trq/helios/minecraft/MinecraftPlayerPose.java): a live player's pose for the frame
 - [AtlasBuilder](fontgen/src/main/java/lol/trq/helios/fontgen/AtlasBuilder.java) and [FontGen](fontgen/src/main/java/lol/trq/helios/fontgen/FontGen.java): atlas building and its command line
 - [MsdfGenerator](fontgen/src/main/java/lol/trq/helios/fontgen/MsdfGenerator.java), [EdgeColoring](fontgen/src/main/java/lol/trq/helios/fontgen/EdgeColoring.java), [EdgeSegment](fontgen/src/main/java/lol/trq/helios/fontgen/EdgeSegment.java): the msdfgen port
