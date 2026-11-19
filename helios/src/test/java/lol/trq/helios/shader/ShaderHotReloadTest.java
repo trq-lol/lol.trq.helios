@@ -25,7 +25,7 @@ class ShaderHotReloadTest {
     void reloadsWhenAFileChangesAndThrottlesScans() throws Exception {
         Files.writeString(dir.resolve("a.vsh"), "void main() {}\n");
         Files.writeString(dir.resolve("a.fsh"), "void main() {}\n");
-        ShaderLoader loader = new ShaderLoader(gl, SourceResolver.directory(dir), 120);
+        ShaderLoader loader = new ShaderLoader(gl, SourceResolver.directory(dir));
         ShaderProgram p = loader.load("a.vsh", "a.fsh", Map.of());
         ShaderHotReload hot = new ShaderHotReload(loader, dir, 250, () -> now);
 
@@ -50,7 +50,7 @@ class ShaderHotReloadTest {
     void brokenEditKeepsTheLastGoodProgram() throws Exception {
         Files.writeString(dir.resolve("a.vsh"), "void main() {}\n");
         Files.writeString(dir.resolve("a.fsh"), "void main() {}\n");
-        ShaderLoader loader = new ShaderLoader(gl, SourceResolver.directory(dir), 120);
+        ShaderLoader loader = new ShaderLoader(gl, SourceResolver.directory(dir));
         ShaderProgram p = loader.load("a.vsh", "a.fsh", Map.of());
         ShaderHotReload hot = new ShaderHotReload(loader, dir, 0, () -> now);
         int good = p.id();

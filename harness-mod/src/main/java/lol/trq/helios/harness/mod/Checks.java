@@ -643,7 +643,7 @@ final class Checks {
     private ShaderProgram invertProgram() {
         if (invert == null) {
             SourceResolver mine = SourceResolver.classpath(Checks.class.getClassLoader(), "helios-harness");
-            invert = new ShaderLoader(helios.gl(), mine.or(Helios.builtinShaders()), Helios.GLSL_VERSION)
+            invert = new ShaderLoader(helios.gl(), mine.or(Helios.builtinShaders()))
                     .load(Passes.FULLSCREEN_VERTEX, "invert.fsh", Map.of());
         }
         return invert;
@@ -671,8 +671,8 @@ final class Checks {
      */
     private void checkCacheCoherence() {
         GlStateCache gsm = new MinecraftGlStateCache(Checks.class.getClassLoader());
-        int[] caps = {GL11.GL_BLEND, GL11.GL_ALPHA_TEST, GL11.GL_CULL_FACE, GL11.GL_DEPTH_TEST, GL11.GL_TEXTURE_2D};
-        String[] names = {"blend", "alpha", "cull", "depth", "texture2D"};
+        int[] caps = {GL11.GL_BLEND, GL11.GL_CULL_FACE, GL11.GL_DEPTH_TEST};
+        String[] names = {"blend", "cull", "depth"};
         for (int k = 0; k < caps.length; k++) {
             boolean orig = GL11.glIsEnabled(caps[k]);
             set(gsm, k, !orig);
@@ -733,10 +733,8 @@ final class Checks {
     private static void set(GlStateCache gsm, int k, boolean on) {
         switch (k) {
             case 0 -> gsm.blend(on);
-            case 1 -> gsm.alphaTest(on);
-            case 2 -> gsm.cull(on);
-            case 3 -> gsm.depthTest(on);
-            default -> gsm.texture2D(on);
+            case 1 -> gsm.cull(on);
+            default -> gsm.depthTest(on);
         }
     }
 
@@ -823,18 +821,11 @@ final class Checks {
             int activeTexture,
             int texture,
             int arrayBuffer,
-            String attribs,
-            String viewport,
-            String color) {
+            int vertexArray,
+            String viewport) {
         static State capture() {
             int[] vp = new int[4];
             GL11.glGetIntegerv(GL11.GL_VIEWPORT, vp);
-            float[] col = new float[4];
-            GL11.glGetFloatv(GL11.GL_CURRENT_COLOR, col);
-            StringBuilder attribs = new StringBuilder();
-            for (int i = 0; i < 9; i++) {
-                attribs.append(GL20.glGetVertexAttribi(i, GL20.GL_VERTEX_ATTRIB_ARRAY_ENABLED) != 0 ? '1' : '0');
-            }
             return new State(
                     GL11.glIsEnabled(GL11.GL_BLEND),
                     GL11.glGetInteger(0x80C9),
@@ -852,9 +843,8 @@ final class Checks {
                     GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE),
                     GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D),
                     GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING),
-                    attribs.toString(),
-                    Arrays.toString(vp),
-                    Arrays.toString(col));
+                    GL11.glGetInteger(0x85B5),
+                    Arrays.toString(vp));
         }
     }
 }

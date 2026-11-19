@@ -42,21 +42,6 @@ public final class DirectGlStateCache implements GlStateCache {
     }
 
     @Override
-    public void alphaTest(boolean on) {
-        gl.setEnabled(GlBackend.ALPHA_TEST, on);
-    }
-
-    @Override
-    public void texture2D(boolean on) {
-        gl.setEnabled(GlBackend.TEXTURE_2D, on);
-    }
-
-    @Override
-    public void color(float r, float g, float b, float a) {
-        gl.color(r, g, b, a);
-    }
-
-    @Override
     public void activeTexture(int unit) {
         gl.activeTexture(unit);
     }
@@ -69,10 +54,5 @@ public final class DirectGlStateCache implements GlStateCache {
     @Override
     public void colorMask(boolean r, boolean g, boolean b, boolean a) {
         gl.colorMask(r, g, b, a);
-    }
-
-    @Override
-    public void alphaFunc(int func, float ref) {
-        gl.alphaFunc(func, ref);
     }
 }

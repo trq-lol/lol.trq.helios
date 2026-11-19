@@ -39,12 +39,6 @@ public final class StateGuard implements AutoCloseable {
         DEPTH_MASK,
         /** {@code GL_CULL_FACE}. */
         CULL,
-        /** {@code GL_ALPHA_TEST}. */
-        ALPHA_TEST,
-        /** {@code GL_TEXTURE_2D} on the active unit. */
-        TEXTURE_2D,
-        /** The current colour. */
-        COLOR,
         /** The program in use. */
         PROGRAM,
         /** The framebuffer bound to {@code GL_FRAMEBUFFER}. */
@@ -53,8 +47,8 @@ public final class StateGuard implements AutoCloseable {
         VIEWPORT,
         /** The buffer bound to {@code GL_ARRAY_BUFFER}. */
         ARRAY_BUFFER,
-        /** Which generic vertex attribute arrays are enabled. */
-        VERTEX_ATTRIBS,
+        /** {@code GL_VERTEX_ARRAY_BINDING}. */
+        VERTEX_ARRAY,
         /** The active texture unit. */
         ACTIVE_TEXTURE,
         /** The 2D texture bound on each touched unit. */
@@ -65,11 +59,8 @@ public final class StateGuard implements AutoCloseable {
         STENCIL,
         /** The colour write mask. */
         COLOR_MASK,
-        /** The alpha test comparison and reference. */
-        ALPHA_FUNC
     }
 
-    private static final int MAX_ATTRIBS = 16;
     private static final int MAX_UNITS = 8;
 
     private final GlBackend gl;
@@ -86,13 +77,11 @@ public final class StateGuard implements AutoCloseable {
     private int blendDstRgb;
     private int blendSrcAlpha;
     private int blendDstAlpha;
-    private float[] color;
     private int[] viewport;
     private int program;
     private int framebuffer;
     private int arrayBuffer;
-    private int attribsTouched;
-    private int attribsEnabled;
+    private int vertexArray;
     private int activeTexture;
     private int unitsTouched;
     private int[] textures;
@@ -101,8 +90,6 @@ public final class StateGuard implements AutoCloseable {
     private int[] stencil;
     private boolean stencilEnabled;
     private int colorMaskBits;
-    private int alphaFunc;
-    private float alphaRef;
     private boolean closed;
 
     private StateGuard(GlBackend gl, GlStateCache cache) {
@@ -192,48 +179,6 @@ public final class StateGuard implements AutoCloseable {
     }
 
     /**
-     * Sets the fixed-function alpha test on or off.
-     *
-     * @param on whether the alpha test is on
-     * @return this guard
-     */
-    public StateGuard alphaTest(boolean on) {
-        saveFlag(Slot.ALPHA_TEST, GlBackend.ALPHA_TEST);
-        cache.alphaTest(on);
-        return this;
-    }
-
-    /**
-     * Sets fixed-function 2D texturing on the active unit on or off.
-     *
-     * @param on whether texturing is on
-     * @return this guard
-     */
-    public StateGuard texture2D(boolean on) {
-        saveFlag(Slot.TEXTURE_2D, GlBackend.TEXTURE_2D);
-        cache.texture2D(on);
-        return this;
-    }
-
-    /**
-     * Sets the current colour.
-     *
-     * @param r red
-     * @param g green
-     * @param b blue
-     * @param a alpha
-     * @return this guard
-     */
-    public StateGuard color(float r, float g, float b, float a) {
-        if (save(Slot.COLOR)) {
-            color = new float[4];
-            gl.getFloats(GlBackend.CURRENT_COLOR, color);
-        }
-        cache.color(r, g, b, a);
-        return this;
-    }
-
-    /**
      * Uses a program.
      *
      * @param id the program, or 0
@@ -289,30 +234,22 @@ public final class StateGuard implements AutoCloseable {
         if (save(Slot.ARRAY_BUFFER)) {
             arrayBuffer = gl.getInteger(GlBackend.ARRAY_BUFFER_BINDING);
         }
-        gl.bindArrayBuffer(id);
+        gl.bindBuffer(GlBackend.ARRAY_BUFFER, id);
         return this;
     }
 
     /**
-     * Enables or disables a generic vertex attribute array.
+     * Binds a vertex array object. Core profile draws need one bound; the element buffer and attribute layout are
+     * part of it, so they need no slots of their own.
      *
-     * @param index the attribute, below 16
-     * @param on whether it is enabled
+     * @param id the vertex array, or 0
      * @return this guard
      */
-    public StateGuard vertexAttrib(int index, boolean on) {
-        if (index < 0 || index >= MAX_ATTRIBS) {
-            throw new IllegalArgumentException("attribute index out of range: " + index);
+    public StateGuard vertexArray(int id) {
+        if (save(Slot.VERTEX_ARRAY)) {
+            vertexArray = gl.getInteger(GlBackend.VERTEX_ARRAY_BINDING);
         }
-        save(Slot.VERTEX_ATTRIBS);
-        int bit = 1 << index;
-        if ((attribsTouched & bit) == 0) {
-            attribsTouched |= bit;
-            if (gl.vertexAttribEnabled(index)) {
-                attribsEnabled |= bit;
-            }
-        }
-        gl.vertexAttribArray(index, on);
+        gl.bindVertexArray(id);
         return this;
     }
 
@@ -421,24 +358,6 @@ public final class StateGuard implements AutoCloseable {
     }
 
     /**
-     * Sets the alpha test comparison.
-     *
-     * @param func the comparison
-     * @param ref the reference alpha
-     * @return this guard
-     */
-    public StateGuard alphaFunc(int func, float ref) {
-        if (save(Slot.ALPHA_FUNC)) {
-            alphaFunc = gl.getInteger(GlBackend.ALPHA_TEST_FUNC);
-            float[] r = new float[4];
-            gl.getFloats(GlBackend.ALPHA_TEST_REF, r);
-            alphaRef = r[0];
-        }
-        cache.alphaFunc(func, ref);
-        return this;
-    }
-
-    /**
      * Returns the slots this guard will restore, in first-touch order.
      *
      * @return an unmodifiable view
@@ -467,20 +386,11 @@ public final class StateGuard implements AutoCloseable {
                 case DEPTH_TEST -> cache.depthTest(flag);
                 case DEPTH_MASK -> cache.depthMask(flag);
                 case CULL -> cache.cull(flag);
-                case ALPHA_TEST -> cache.alphaTest(flag);
-                case TEXTURE_2D -> cache.texture2D(flag);
-                case COLOR -> cache.color(color[0], color[1], color[2], color[3]);
                 case PROGRAM -> gl.useProgram(program);
                 case FRAMEBUFFER -> gl.bindFramebuffer(framebuffer);
                 case VIEWPORT -> gl.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-                case ARRAY_BUFFER -> gl.bindArrayBuffer(arrayBuffer);
-                case VERTEX_ATTRIBS -> {
-                    for (int a = 0; a < MAX_ATTRIBS; a++) {
-                        if ((attribsTouched & (1 << a)) != 0) {
-                            gl.vertexAttribArray(a, (attribsEnabled & (1 << a)) != 0);
-                        }
-                    }
-                }
+                case ARRAY_BUFFER -> gl.bindBuffer(GlBackend.ARRAY_BUFFER, arrayBuffer);
+                case VERTEX_ARRAY -> gl.bindVertexArray(vertexArray);
                 case ACTIVE_TEXTURE -> cache.activeTexture(activeTexture);
                 case TEXTURES -> {
                     for (int u = 0; u < MAX_UNITS; u++) {
@@ -502,7 +412,6 @@ public final class StateGuard implements AutoCloseable {
                             (colorMaskBits & 2) != 0,
                             (colorMaskBits & 4) != 0,
                             (colorMaskBits & 8) != 0);
-                case ALPHA_FUNC -> cache.alphaFunc(alphaFunc, alphaRef);
                 case SCISSOR -> {
                     gl.scissor(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3]);
                     gl.setEnabled(GlBackend.SCISSOR_TEST, scissorEnabled);

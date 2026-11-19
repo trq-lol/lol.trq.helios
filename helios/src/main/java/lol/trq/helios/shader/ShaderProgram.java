@@ -99,6 +99,19 @@ public final class ShaderProgram implements AutoCloseable {
     }
 
     /**
+     * Sets a {@code mat4} uniform.
+     *
+     * @param uniform the name
+     * @param m the matrix, 16 floats column-major
+     */
+    public void set(String uniform, float[] m) {
+        int loc = location(uniform);
+        if (loc >= 0) {
+            gl.uniformMatrix4(loc, m);
+        }
+    }
+
+    /**
      * Sets a {@code vec4} uniform.
      *
      * @param uniform the name

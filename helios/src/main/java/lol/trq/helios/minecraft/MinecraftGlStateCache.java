@@ -24,15 +24,9 @@ public final class MinecraftGlStateCache implements GlStateCache {
     private final MethodHandle depthMask;
     private final MethodHandle enableCull;
     private final MethodHandle disableCull;
-    private final MethodHandle enableAlpha;
-    private final MethodHandle disableAlpha;
-    private final MethodHandle enableTexture2D;
-    private final MethodHandle disableTexture2D;
-    private final MethodHandle color;
     private final MethodHandle setActiveTexture;
     private final MethodHandle bindTexture;
     private final MethodHandle colorMask;
-    private final MethodHandle alphaFunc;
 
     /**
      * Resolves {@code GlStateManager}.
@@ -60,15 +54,6 @@ public final class MinecraftGlStateCache implements GlStateCache {
         depthMask = find(gsm, "func_179132_a", "depthMask", MethodType.methodType(void.class, boolean.class));
         enableCull = find(gsm, "func_179089_o", "enableCull", v);
         disableCull = find(gsm, "func_179129_p", "disableCull", v);
-        enableAlpha = find(gsm, "func_179141_d", "enableAlpha", v);
-        disableAlpha = find(gsm, "func_179118_c", "disableAlpha", v);
-        enableTexture2D = find(gsm, "func_179098_w", "enableTexture2D", v);
-        disableTexture2D = find(gsm, "func_179090_x", "disableTexture2D", v);
-        color = find(
-                gsm,
-                "func_179131_c",
-                "color",
-                MethodType.methodType(void.class, float.class, float.class, float.class, float.class));
         MethodType i = MethodType.methodType(void.class, int.class);
         setActiveTexture = find(gsm, "func_179138_g", "setActiveTexture", i);
         bindTexture = find(gsm, "func_179144_i", "bindTexture", i);
@@ -77,7 +62,6 @@ public final class MinecraftGlStateCache implements GlStateCache {
                 "func_179135_a",
                 "colorMask",
                 MethodType.methodType(void.class, boolean.class, boolean.class, boolean.class, boolean.class));
-        alphaFunc = find(gsm, "func_179092_a", "alphaFunc", MethodType.methodType(void.class, int.class, float.class));
     }
 
     private static MethodHandle find(Class<?> owner, String srg, String mcp, MethodType type) {
@@ -127,25 +111,6 @@ public final class MinecraftGlStateCache implements GlStateCache {
     }
 
     @Override
-    public void alphaTest(boolean on) {
-        run(on ? enableAlpha : disableAlpha);
-    }
-
-    @Override
-    public void texture2D(boolean on) {
-        run(on ? enableTexture2D : disableTexture2D);
-    }
-
-    @Override
-    public void color(float r, float g, float b, float a) {
-        try {
-            color.invokeExact(r, g, b, a);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
-    }
-
-    @Override
     public void activeTexture(int unit) {
         try {
             setActiveTexture.invokeExact(unit);
@@ -167,15 +132,6 @@ public final class MinecraftGlStateCache implements GlStateCache {
     public void colorMask(boolean r, boolean g, boolean b, boolean a) {
         try {
             colorMask.invokeExact(r, g, b, a);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
-    }
-
-    @Override
-    public void alphaFunc(int func, float ref) {
-        try {
-            alphaFunc.invokeExact(func, ref);
         } catch (Throwable t) {
             throw rethrow(t);
         }

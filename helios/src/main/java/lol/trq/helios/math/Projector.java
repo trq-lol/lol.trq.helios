@@ -21,8 +21,6 @@ import lol.trq.helios.gl.GlBackend;
  * }</pre>
  */
 public final class Projector {
-    private static final int MODELVIEW_MATRIX = 0x0BA6;
-    private static final int PROJECTION_MATRIX = 0x0BA7;
 
     private final float[] modelView = new float[16];
     private final float[] projection = new float[16];
@@ -40,15 +38,14 @@ public final class Projector {
     }
 
     /**
-     * Captures the current fixed-function model-view and projection matrices and the viewport.
+     * Captures the host's current model-view and projection matrices and the viewport.
      *
      * @param gl the backend
      * @param pixel one framebuffer pixel in output units, such as {@code 1 / guiScale}
      * @return this projector
      */
     public Projector capture(GlBackend gl, float pixel) {
-        gl.getFloats(MODELVIEW_MATRIX, modelView);
-        gl.getFloats(PROJECTION_MATRIX, projection);
+        gl.matrices(modelView, projection);
         gl.getIntegers(GlBackend.VIEWPORT, viewport);
         return set(modelView, projection, viewport, pixel);
     }

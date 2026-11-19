@@ -17,7 +17,6 @@ public final class FakeGl implements GlBackend, GlStateCache {
     public final Set<Integer> enabled = new HashSet<>();
     public final Map<Integer, Integer> ints = new HashMap<>();
     public final int[] blend = {ONE, 0, ONE, 0};
-    public final float[] color = {1, 1, 1, 1};
     public final int[] viewport = {0, 0, 854, 480};
     public final Map<Integer, String> sources = new HashMap<>();
     public final Set<Integer> liveShaders = new HashSet<>();
@@ -27,6 +26,7 @@ public final class FakeGl implements GlBackend, GlStateCache {
     public String compileLog = "";
     public boolean links = true;
     public int uniformLookups;
+    public final Map<Integer, Float> floats = new HashMap<>();
     private int nextId = 1;
 
     @Override
@@ -44,8 +44,6 @@ public final class FakeGl implements GlBackend, GlStateCache {
             case STENCIL_PASS_DEPTH_FAIL -> stencilState[4];
             case STENCIL_PASS_DEPTH_PASS -> stencilState[5];
             case STENCIL_WRITEMASK -> stencilState[6];
-            case STENCIL_BITS -> stencilBits;
-            case ALPHA_TEST_FUNC -> alphaFuncValue;
             case TEXTURE_BINDING_2D -> textureByUnit.getOrDefault(activeUnit, 0);
             default -> ints.getOrDefault(pname, 0);
         };
@@ -61,15 +59,6 @@ public final class FakeGl implements GlBackend, GlStateCache {
             for (int i = 0; i < 4; i++) {
                 out[i] = colorWrite[i] ? 1 : 0;
             }
-        }
-    }
-
-    @Override
-    public void getFloats(int pname, float[] out) {
-        if (pname == CURRENT_COLOR) {
-            System.arraycopy(color, 0, out, 0, 4);
-        } else if (pname == ALPHA_TEST_REF) {
-            out[0] = alphaRefValue;
         }
     }
 
@@ -101,15 +90,6 @@ public final class FakeGl implements GlBackend, GlStateCache {
     public void depthMask(boolean write) {
         calls.add("depthMask " + write);
         ints.put(DEPTH_WRITEMASK, write ? 1 : 0);
-    }
-
-    @Override
-    public void color(float r, float g, float b, float a) {
-        calls.add("color");
-        color[0] = r;
-        color[1] = g;
-        color[2] = b;
-        color[3] = a;
     }
 
     @Override
@@ -186,6 +166,7 @@ public final class FakeGl implements GlBackend, GlStateCache {
     @Override
     public void uniform1f(int location, float v) {
         calls.add("uniform1f " + location);
+        floats.put(location, v);
     }
 
     @Override
@@ -222,11 +203,6 @@ public final class FakeGl implements GlBackend, GlStateCache {
     }
 
     @Override
-    public void quad(float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1) {
-        calls.add("quad " + x0 + "," + y0 + "," + x1 + "," + y1 + " uv " + u0 + "," + v0 + "," + u1 + "," + v1);
-    }
-
-    @Override
     public void blend(boolean on) {
         setEnabled(BLEND, on);
     }
@@ -246,32 +222,15 @@ public final class FakeGl implements GlBackend, GlStateCache {
         setEnabled(CULL_FACE, on);
     }
 
-    @Override
-    public void alphaTest(boolean on) {
-        setEnabled(ALPHA_TEST, on);
-    }
-
-    @Override
-    public void texture2D(boolean on) {
-        setEnabled(TEXTURE_2D, on);
-    }
-
     // The host cache: in tests it forwards straight to the fake GL.
     // activeTexture and bindTexture are shared with GlBackend.
 
-    public final List<String[]> linkedAttributes = new ArrayList<>();
     public final List<java.nio.ByteBuffer> streamed = new ArrayList<>();
     public final Set<Integer> attribsEnabled = new HashSet<>();
     public final Map<Integer, Integer> textureByUnit = new HashMap<>();
     public final int[] scissorBox = new int[4];
     public int activeUnit = TEXTURE0;
     public final Set<Integer> liveBuffers = new HashSet<>();
-
-    @Override
-    public int linkProgram(String[] attributes, int... shaders) {
-        linkedAttributes.add(attributes.clone());
-        return linkProgram(shaders);
-    }
 
     @Override
     public int createBuffer() {
@@ -283,37 +242,6 @@ public final class FakeGl implements GlBackend, GlStateCache {
     @Override
     public void deleteBuffer(int buffer) {
         liveBuffers.remove(buffer);
-    }
-
-    @Override
-    public void bindArrayBuffer(int buffer) {
-        calls.add("bindArrayBuffer " + buffer);
-        ints.put(ARRAY_BUFFER_BINDING, buffer);
-    }
-
-    @Override
-    public void streamArrayBuffer(java.nio.ByteBuffer data) {
-        java.nio.ByteBuffer copy =
-                java.nio.ByteBuffer.allocate(data.remaining()).order(data.order());
-        copy.put(data.duplicate());
-        copy.flip();
-        streamed.add(copy);
-        calls.add("stream " + copy.remaining());
-    }
-
-    @Override
-    public boolean vertexAttribEnabled(int index) {
-        return attribsEnabled.contains(index);
-    }
-
-    @Override
-    public void vertexAttribArray(int index, boolean on) {
-        calls.add((on ? "enableAttrib " : "disableAttrib ") + index);
-        if (on) {
-            attribsEnabled.add(index);
-        } else {
-            attribsEnabled.remove(index);
-        }
     }
 
     @Override
@@ -373,8 +301,6 @@ public final class FakeGl implements GlBackend, GlStateCache {
 
     public final int[] stencilState = {ALWAYS, 0, 0xFF, KEEP, KEEP, KEEP, 0xFF};
     public final boolean[] colorWrite = {true, true, true, true};
-    public int alphaFuncValue = ALWAYS;
-    public float alphaRefValue;
     public int stencilBits = 8;
 
     @Override
@@ -418,10 +344,99 @@ public final class FakeGl implements GlBackend, GlStateCache {
         colorWrite[3] = a;
     }
 
+    // Core profile additions.
+
+    public final float[] modelView = lol.trq.helios.math.Mat4.identity(new float[16]);
+    public final float[] projection = lol.trq.helios.math.Mat4.identity(new float[16]);
+    public final Set<Integer> liveVertexArrays = new HashSet<>();
+    public final Set<Long> liveFences = new HashSet<>();
+    public final Map<Integer, Integer> bufferSizes = new HashMap<>();
+    private long nextFence = 1;
+
     @Override
-    public void alphaFunc(int func, float ref) {
-        calls.add("alphaFunc " + func + " " + ref);
-        alphaFuncValue = func;
-        alphaRefValue = ref;
+    public void matrices(float[] mv, float[] proj) {
+        System.arraycopy(modelView, 0, mv, 0, 16);
+        System.arraycopy(projection, 0, proj, 0, 16);
+    }
+
+    @Override
+    public void uniformMatrix4(int location, float[] m) {
+        calls.add("uniformMatrix4 " + location);
+    }
+
+    @Override
+    public int createVertexArray() {
+        int id = nextId++;
+        liveVertexArrays.add(id);
+        return id;
+    }
+
+    @Override
+    public void deleteVertexArray(int vao) {
+        liveVertexArrays.remove(vao);
+    }
+
+    @Override
+    public void bindVertexArray(int vao) {
+        calls.add("bindVertexArray " + vao);
+        ints.put(VERTEX_ARRAY_BINDING, vao);
+    }
+
+    @Override
+    public void bindBuffer(int target, int buffer) {
+        calls.add((target == ARRAY_BUFFER ? "bindArrayBuffer " : "bindElementBuffer ") + buffer);
+        if (target == ARRAY_BUFFER) {
+            ints.put(ARRAY_BUFFER_BINDING, buffer);
+        }
+    }
+
+    @Override
+    public void bufferData(int target, java.nio.ByteBuffer data, int usage) {
+        calls.add("bufferData " + data.remaining());
+    }
+
+    @Override
+    public void bufferStorage(int target, long size, int usage) {
+        calls.add("bufferStorage " + size);
+    }
+
+    @Override
+    public void bufferSubData(int target, long offset, java.nio.ByteBuffer data) {
+        java.nio.ByteBuffer copy =
+                java.nio.ByteBuffer.allocate(data.remaining()).order(data.order());
+        copy.put(data.duplicate());
+        copy.flip();
+        streamed.add(copy);
+        calls.add("stream " + copy.remaining() + " @" + offset);
+    }
+
+    @Override
+    public void enableVertexAttrib(int index) {
+        calls.add("enableAttrib " + index);
+        attribsEnabled.add(index);
+    }
+
+    @Override
+    public void drawElements(int mode, int count, int type, long offset, int baseVertex) {
+        calls.add("drawElements " + mode + " " + count + " " + type + " base " + baseVertex);
+    }
+
+    @Override
+    public long fence() {
+        long f = nextFence++;
+        liveFences.add(f);
+        calls.add("fence " + f);
+        return f;
+    }
+
+    @Override
+    public boolean waitFence(long sync, long timeoutNanos) {
+        calls.add("waitFence " + sync);
+        return true;
+    }
+
+    @Override
+    public void deleteFence(long sync) {
+        liveFences.remove(sync);
     }
 }

@@ -68,7 +68,7 @@ public class HeliosBench {
                 .shadow(TextStyle.Shadow.CLASSIC)
                 .build();
         gradient = Paint.linear(30, 0xFFFF0000, 0xFF0000FF);
-        preprocessor = new ShaderPreprocessor(Helios.builtinShaders(), 120);
+        preprocessor = new ShaderPreprocessor(Helios.builtinShaders());
         projector = new Projector()
                 .set(
                         Mat4.translation(0, -1.6f, 0, new float[16]),
@@ -149,7 +149,7 @@ public class HeliosBench {
         try (StateGuard g = helios.guard()) {
             g.blend(true)
                     .blendFunc(1, 2, 3, 4)
-                    .alphaTest(false)
+                    .depthMask(false)
                     .cull(false)
                     .program(3)
                     .arrayBuffer(4);

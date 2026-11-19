@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class ShapeBatchTest {
     private final FakeGl gl = new FakeGl();
-    private final ShapeBatch batch = new ShapeBatch(gl, gl, new ShaderLoader(gl, Helios.builtinShaders(), 120), 3);
+    private final ShapeBatch batch = new ShapeBatch(gl, gl, new ShaderLoader(gl, Helios.builtinShaders()), 3);
 
     /** One decoded vertex. */
     record V(float x, float y, float lx, float ly, float[] shape, float[] params, float u, float v, int[] colors) {}
@@ -41,9 +41,47 @@ class ShapeBatchTest {
     }
 
     @Test
-    void attributesAreBoundInLayoutOrder() {
-        assertArrayEquals(ShapeBatch.ATTRIBUTES.toArray(new String[0]), gl.linkedAttributes.get(0));
-        assertEquals("a_pos", gl.linkedAttributes.get(0)[0]);
+    void shaderDeclaresEveryAttributeAtItsLocation() {
+        String vs = gl.sources.values().stream()
+                .filter(s -> s.contains("a_pos"))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(vs.startsWith("#version 410 core\n"));
+        for (int i = 0; i < ShapeBatch.ATTRIBUTES.size(); i++) {
+            assertTrue(vs.contains("layout(location = " + i + ") in "), ShapeBatch.ATTRIBUTES.get(i));
+            assertTrue(vs.matches(
+                    "(?s).*layout\\(location = " + i + "\\) in \\w+ " + ShapeBatch.ATTRIBUTES.get(i) + ";.*"));
+        }
+    }
+
+    @Test
+    void drawsIndexedTrianglesFromItsOwnVertexArray() {
+        batch.begin(1).rect(0, 0, 1, 1, 0, -1).end();
+        assertEquals(1, gl.liveVertexArrays.size());
+        assertTrue(gl.calls.contains(
+                "drawElements " + GlBackend.TRIANGLES + " 6 " + GlBackend.UNSIGNED_SHORT + " base 0"));
+        assertTrue(gl.calls.stream().noneMatch(c -> c.startsWith("drawArrays")));
+        assertTrue(gl.calls.contains("uniformMatrix4 " + "u_mvp".length()));
+        assertEquals(0, gl.getInteger(GlBackend.VERTEX_ARRAY_BINDING));
+        batch.begin(1).rect(0, 0, 1, 1, 0, -1).end();
+        assertEquals(1, gl.liveVertexArrays.size());
+    }
+
+    @Test
+    void framesAppendToOneBufferAndRotateAtFrameEnd() {
+        batch.begin(1).rect(0, 0, 1, 1, 0, -1).end();
+        batch.begin(1).rect(0, 0, 1, 1, 0, -1).end();
+        assertTrue(gl.calls.contains("stream " + 4 * ShapeBatch.STRIDE + " @0"));
+        assertTrue(gl.calls.contains("stream " + 4 * ShapeBatch.STRIDE + " @" + 4 * ShapeBatch.STRIDE));
+        assertTrue(gl.calls.contains(
+                "drawElements " + GlBackend.TRIANGLES + " 6 " + GlBackend.UNSIGNED_SHORT + " base 4"));
+        batch.endFrame();
+        assertEquals(1, gl.liveFences.size());
+        batch.begin(1).rect(0, 0, 1, 1, 0, -1).end();
+        assertTrue(gl.calls.get(gl.calls.size() - 1).contains("base 0")
+                || gl.calls.stream()
+                        .anyMatch(c -> c.equals(
+                                "drawElements " + GlBackend.TRIANGLES + " 6 " + GlBackend.UNSIGNED_SHORT + " base 0")));
     }
 
     @Test
@@ -61,7 +99,7 @@ class ShapeBatchTest {
         for (V vert : v) {
             assertArrayEquals(new int[] {0xFF3B82F6, 0xFF3B82F6, 0xFF3B82F6, 0xFF3B82F6}, vert.colors());
         }
-        assertTrue(gl.calls.contains("drawArrays " + GlBackend.QUADS + " 0 4"));
+        assertTrue(gl.calls.stream().anyMatch(c -> c.startsWith("drawElements " + GlBackend.TRIANGLES + " 6 ")));
     }
 
     @Test
@@ -71,17 +109,17 @@ class ShapeBatchTest {
         batch.rect(0, 0, 1, 1, 0, -1);
         batch.end();
         assertEquals(2, batch.drawCalls());
-        assertTrue(gl.calls.contains("drawArrays 7 0 12"));
-        assertTrue(gl.calls.contains("drawArrays 7 0 4"));
+        assertTrue(gl.calls.contains("drawElements 4 18 " + GlBackend.UNSIGNED_SHORT + " base 0"));
+        assertTrue(gl.calls.contains("drawElements 4 6 " + GlBackend.UNSIGNED_SHORT + " base 12"));
     }
 
     @Test
     void flushRestoresEveryState() {
-        gl.attribsEnabled.add(2);
+        gl.ints.put(GlBackend.VERTEX_ARRAY_BINDING, 2);
         gl.ints.put(GlBackend.CURRENT_PROGRAM, 5);
         gl.ints.put(GlBackend.ARRAY_BUFFER_BINDING, 9);
         batch.begin(1).rect(0, 0, 4, 4, 1, -1).end();
-        assertEquals(java.util.Set.of(2), gl.attribsEnabled);
+        assertEquals(2, gl.getInteger(GlBackend.VERTEX_ARRAY_BINDING));
         assertEquals(5, gl.getInteger(GlBackend.CURRENT_PROGRAM));
         assertEquals(9, gl.getInteger(GlBackend.ARRAY_BUFFER_BINDING));
         assertFalse(gl.isEnabled(GlBackend.BLEND));

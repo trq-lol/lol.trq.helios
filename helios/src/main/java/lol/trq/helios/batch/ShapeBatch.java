@@ -6,6 +6,8 @@ import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import lol.trq.helios.gl.GlBackend;
+import lol.trq.helios.gl.StreamBuffer;
+import lol.trq.helios.math.Mat4;
 import lol.trq.helios.sdf.Sdf;
 import lol.trq.helios.shader.ShaderLoader;
 import lol.trq.helios.shader.ShaderProgram;
@@ -22,7 +24,9 @@ import lol.trq.helios.state.StateGuard;
  * size of that pixel in drawing units, and quads are grown by it so the outer half of the edge is not clipped.
  *
  * <p>Each shape is one quad of four vertices of {@value #STRIDE} bytes: position, position relative to the shape
- * centre, shape (half size, radius, kind), parameters, texture coordinates and four corner colours.
+ * centre, shape (half size, radius, kind), parameters, texture coordinates and four corner colours. Shapes are drawn
+ * as indexed triangles from the batch's own vertex array. Vertex data goes through a {@link StreamBuffer}, so a
+ * frame's shapes land in one buffer; call {@link #endFrame()} once per frame.
  */
 public final class ShapeBatch implements AutoCloseable {
     /** Bytes per vertex. */
@@ -35,7 +39,7 @@ public final class ShapeBatch implements AutoCloseable {
     static final int KIND_IMAGE = 4;
     static final int KIND_GLYPH = 5;
 
-    /** Attribute names, bound to their index. */
+    /** Attribute names, in the order of their {@code layout(location)} in {@code shape.vsh}. */
     public static final List<String> ATTRIBUTES =
             List.of("a_pos", "a_local", "a_shape", "a_params", "a_uv", "a_color0", "a_color1", "a_color2", "a_color3");
 
@@ -45,7 +49,14 @@ public final class ShapeBatch implements AutoCloseable {
     private final int capacity;
     private final ByteBuffer vertices;
     private final int[] colors = new int[4];
-    private int vbo;
+    private final StreamBuffer stream;
+    private final float[] modelView = new float[16];
+    private final float[] projection = new float[16];
+    private final float[] mvp = new float[16];
+    private final int indexType;
+    private int vao;
+    private int ibo;
+    private int vaoBuffer;
     private int count;
     private int texture;
     private float pixel;
@@ -68,8 +79,10 @@ public final class ShapeBatch implements AutoCloseable {
         this.gl = gl;
         this.cache = cache;
         this.capacity = capacity;
-        this.program = shaders.load("shape.vsh", "shape.fsh", Map.of(), ATTRIBUTES);
+        this.program = shaders.load("shape.vsh", "shape.fsh", Map.of());
         this.vertices = ByteBuffer.allocateDirect(capacity * 4 * STRIDE).order(ByteOrder.nativeOrder());
+        this.stream = new StreamBuffer(gl, (long) Math.max(capacity, 1024) * 4 * STRIDE * 4);
+        this.indexType = capacity * 4 <= 0x10000 ? GlBackend.UNSIGNED_SHORT : GlBackend.UNSIGNED_INT;
     }
 
     /**
@@ -98,8 +111,8 @@ public final class ShapeBatch implements AutoCloseable {
     }
 
     /**
-     * Discards fragments whose alpha is at or below a cutoff, through the fixed-function alpha test. Stencil masks use
-     * it so only the inside of a shape is written. 0 turns it off.
+     * Discards fragments whose alpha is at or below a cutoff, in the fragment shader. Stencil masks use it so only the
+     * inside of a shape is written. 0 turns it off.
      *
      * @param cutoff the alpha below which fragments are dropped, in {@code [0, 1)}
      */
@@ -597,9 +610,6 @@ public final class ShapeBatch implements AutoCloseable {
             texture = 0;
             return;
         }
-        if (vbo == 0) {
-            vbo = gl.createBuffer();
-        }
         vertices.flip();
         try (StateGuard g = StateGuard.begin(gl, cache)) {
             g.blend(true)
@@ -608,36 +618,84 @@ public final class ShapeBatch implements AutoCloseable {
                             GlBackend.ONE_MINUS_SRC_ALPHA,
                             GlBackend.ONE,
                             GlBackend.ONE_MINUS_SRC_ALPHA)
-                    .alphaTest(alphaCutoff > 0)
                     .cull(false)
                     .program(program.id())
-                    .arrayBuffer(vbo);
-            if (alphaCutoff > 0) {
-                g.alphaFunc(GlBackend.GREATER, alphaCutoff);
-            }
+                    .vertexArray(vao)
+                    .arrayBuffer(0);
+            ensureVertexArray();
             if (texture != 0) {
                 g.texture(0, texture);
             }
+            gl.matrices(modelView, projection);
+            Mat4.multiply(projection, modelView, mvp);
+            program.set("u_mvp", mvp);
             program.set("u_texture", 0);
-            gl.streamArrayBuffer(vertices);
-            for (int i = 0; i < ATTRIBUTES.size(); i++) {
-                g.vertexAttrib(i, true);
+            program.set("u_alphaCutoff", alphaCutoff);
+            long offset = stream.upload(vertices, STRIDE);
+            if (stream.buffer() != vaoBuffer) {
+                pointAttributes();
             }
-            gl.vertexAttribPointer(0, 2, GlBackend.FLOAT, false, STRIDE, 0);
-            gl.vertexAttribPointer(1, 2, GlBackend.FLOAT, false, STRIDE, 8);
-            gl.vertexAttribPointer(2, 4, GlBackend.FLOAT, false, STRIDE, 16);
-            gl.vertexAttribPointer(3, 4, GlBackend.FLOAT, false, STRIDE, 32);
-            gl.vertexAttribPointer(4, 2, GlBackend.FLOAT, false, STRIDE, 48);
-            for (int c = 0; c < 4; c++) {
-                gl.vertexAttribPointer(5 + c, 4, GlBackend.UNSIGNED_BYTE, true, STRIDE, 56 + 4L * c);
-            }
-            gl.drawArrays(GlBackend.QUADS, 0, count * 4);
+            gl.drawElements(GlBackend.TRIANGLES, count * 6, indexType, 0, (int) (offset / STRIDE));
             drawCalls++;
         } finally {
             vertices.clear();
             count = 0;
             texture = 0;
         }
+    }
+
+    /**
+     * Builds the vertex array and its index buffer once, two triangles per shape (0-1-2, 2-3-0), and leaves it bound.
+     * Called after the guard has saved the host's binding.
+     */
+    private void ensureVertexArray() {
+        if (vao == 0) {
+            vao = gl.createVertexArray();
+            gl.bindVertexArray(vao);
+            ibo = gl.createBuffer();
+            gl.bindBuffer(GlBackend.ELEMENT_ARRAY_BUFFER, ibo);
+            gl.bufferData(GlBackend.ELEMENT_ARRAY_BUFFER, quadIndices(capacity, indexType), GlBackend.STATIC_DRAW);
+            for (int a = 0; a < ATTRIBUTES.size(); a++) {
+                gl.enableVertexAttrib(a);
+            }
+        }
+    }
+
+    /** Points the attributes at the current stream buffer; the vertex array remembers the buffer per attribute. */
+    private void pointAttributes() {
+        vaoBuffer = stream.buffer();
+        gl.vertexAttribPointer(0, 2, GlBackend.FLOAT, false, STRIDE, 0);
+        gl.vertexAttribPointer(1, 2, GlBackend.FLOAT, false, STRIDE, 8);
+        gl.vertexAttribPointer(2, 4, GlBackend.FLOAT, false, STRIDE, 16);
+        gl.vertexAttribPointer(3, 4, GlBackend.FLOAT, false, STRIDE, 32);
+        gl.vertexAttribPointer(4, 2, GlBackend.FLOAT, false, STRIDE, 48);
+        for (int c = 0; c < 4; c++) {
+            gl.vertexAttribPointer(5 + c, 4, GlBackend.UNSIGNED_BYTE, true, STRIDE, 56 + 4L * c);
+        }
+    }
+
+    static ByteBuffer quadIndices(int quads, int type) {
+        boolean shorts = type == GlBackend.UNSIGNED_SHORT;
+        ByteBuffer b = ByteBuffer.allocateDirect(quads * 6 * (shorts ? 2 : 4)).order(ByteOrder.nativeOrder());
+        for (int q = 0; q < quads; q++) {
+            int v = q * 4;
+            int[] idx = {v, v + 1, v + 2, v + 2, v + 3, v};
+            for (int i : idx) {
+                if (shorts) {
+                    b.putShort((short) i);
+                } else {
+                    b.putInt(i);
+                }
+            }
+        }
+        return b.flip();
+    }
+
+    /**
+     * Marks the end of a frame for the streamed vertex buffers. {@link lol.trq.helios.Helios#tick()} calls it.
+     */
+    public void endFrame() {
+        stream.endFrame();
     }
 
     private static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
@@ -654,13 +712,16 @@ public final class ShapeBatch implements AutoCloseable {
         }
     }
 
-    /** Deletes the program and the vertex buffer. */
+    /** Deletes the program, the vertex array and the buffers. */
     @Override
     public void close() {
         program.close();
-        if (vbo != 0) {
-            gl.deleteBuffer(vbo);
-            vbo = 0;
+        stream.close();
+        if (vao != 0) {
+            gl.deleteVertexArray(vao);
+            gl.deleteBuffer(ibo);
+            vao = 0;
+            ibo = 0;
         }
     }
 }

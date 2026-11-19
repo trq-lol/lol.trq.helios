@@ -1,9 +1,12 @@
+#version 410 core
 // Draws a texture scaled by a colour.
 uniform sampler2D u_texture;
 uniform vec4 u_tint;
 
-varying vec2 v_uv;
+in vec2 v_uv;
+
+layout(location = 0) out vec4 fragColor;
 
 void main() {
-    gl_FragColor = texture2D(u_texture, v_uv) * u_tint;
+    fragColor = texture(u_texture, v_uv) * u_tint;
 }

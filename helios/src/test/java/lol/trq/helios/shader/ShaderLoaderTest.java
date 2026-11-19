@@ -18,7 +18,7 @@ class ShaderLoaderTest {
             "a.vsh", "void main() {}\n",
             "a.fsh", "#include \"lib.glsl\"\nvoid main() {}\n",
             "lib.glsl", "float f;\n"));
-    private final ShaderLoader loader = new ShaderLoader(gl, files::get, 120);
+    private final ShaderLoader loader = new ShaderLoader(gl, files::get);
 
     @Test
     void uniformLocationsAreCachedIncludingMisses() {

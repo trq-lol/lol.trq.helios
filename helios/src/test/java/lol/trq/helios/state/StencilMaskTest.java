@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class StencilMaskTest {
     private final FakeGl gl = new FakeGl();
-    private final ShapeBatch batch = new ShapeBatch(gl, gl, new ShaderLoader(gl, Helios.builtinShaders(), 120), 16);
+    private final ShapeBatch batch = new ShapeBatch(gl, gl, new ShaderLoader(gl, Helios.builtinShaders()), 16);
     private final StencilMask stencil = new StencilMask(gl, gl, batch);
 
     @Test
@@ -40,7 +40,8 @@ class StencilMaskTest {
                 });
         assertTrue(seen[0] && seen[1]);
         assertTrue(gl.calls.contains("clearStencil 0"));
-        assertTrue(gl.calls.contains("alphaFunc " + GlBackend.GREATER + " 0.5"), gl.calls.toString());
+        // The mask draw discards fragments at or below half coverage, in the shader.
+        assertEquals(0.5f, gl.floats.get("u_alphaCutoff".length()));
     }
 
     @Test
@@ -55,11 +56,9 @@ class StencilMaskTest {
         assertArrayEquals(before, gl.stencilState);
         assertFalse(gl.isEnabled(GlBackend.STENCIL_TEST));
         assertTrue(gl.colorWrite[0] && gl.colorWrite[3]);
-        assertFalse(gl.isEnabled(GlBackend.ALPHA_TEST));
-        // The batch is back to no cutoff: a later flush does not touch the alpha function.
-        gl.calls.clear();
+        // The batch is back to no cutoff.
         batch.begin(1).rect(0, 0, 4, 4, 0, -1).end();
-        assertTrue(gl.calls.stream().noneMatch(c -> c.startsWith("alphaFunc")));
+        assertEquals(0f, gl.floats.get("u_alphaCutoff".length()));
     }
 
     @Test

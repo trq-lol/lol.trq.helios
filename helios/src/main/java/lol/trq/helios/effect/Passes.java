@@ -24,6 +24,7 @@ public final class Passes implements AutoCloseable {
     private final ShaderProgram down;
     private final ShaderProgram up;
     private final ShaderProgram composite;
+    private int vao;
 
     /**
      * Creates the passes and compiles their programs.
@@ -134,7 +135,7 @@ public final class Passes implements AutoCloseable {
         try (StateGuard guard = StateGuard.begin(gl, cache)) {
             prepare(guard, composite, texture, additive);
             composite.set("u_tint", r, g, b, a);
-            gl.quad(-1, -1, 1, 1, 0, 0, 1, 1);
+            gl.drawArrays(GlBackend.TRIANGLES, 0, 3);
         }
     }
 
@@ -157,7 +158,7 @@ public final class Passes implements AutoCloseable {
             prepare(g, program, source.texture(), false);
             program.set("u_texel", 1f / source.width(), 1f / source.height());
             uniforms.accept(program);
-            gl.quad(-1, -1, 1, 1, 0, 0, 1, 1);
+            gl.drawArrays(GlBackend.TRIANGLES, 0, 3);
         }
     }
 
@@ -167,12 +168,12 @@ public final class Passes implements AutoCloseable {
             prepare(g, program, source, additive);
             program.set("u_halfPixel", 0.5f / target.width(), 0.5f / target.height());
             program.set("u_offset", offset);
-            gl.quad(-1, -1, 1, 1, 0, 0, 1, 1);
+            gl.drawArrays(GlBackend.TRIANGLES, 0, 3);
         }
     }
 
     private void prepare(StateGuard g, ShaderProgram program, int texture, boolean additive) {
-        g.depthTest(false).depthMask(false).alphaTest(false).cull(false).blend(additive);
+        g.depthTest(false).depthMask(false).cull(false).blend(additive).vertexArray(emptyVertexArray());
         if (additive) {
             g.blendFunc(GlBackend.ONE, GlBackend.ONE, 0, GlBackend.ONE);
         }
@@ -181,8 +182,20 @@ public final class Passes implements AutoCloseable {
     }
 
     /** Deletes the programs. */
+    /** Full-screen passes build their triangle from {@code gl_VertexID}; core still needs a vertex array bound. */
+    private int emptyVertexArray() {
+        if (vao == 0) {
+            vao = gl.createVertexArray();
+        }
+        return vao;
+    }
+
     @Override
     public void close() {
+        if (vao != 0) {
+            gl.deleteVertexArray(vao);
+            vao = 0;
+        }
         down.close();
         up.close();
         composite.close();

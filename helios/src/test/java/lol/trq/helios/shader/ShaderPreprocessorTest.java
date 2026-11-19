@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 class ShaderPreprocessorTest {
     private static ShaderPreprocessor of(Map<String, String> files) {
-        return new ShaderPreprocessor(files::get, 120);
+        return new ShaderPreprocessor(files::get);
     }
 
     @Test
@@ -21,14 +21,23 @@ class ShaderPreprocessorTest {
         defines.put("SAMPLES", "8");
         defines.put("USE_FAST", "");
         var out = of(Map.of("a.fsh", "void main() {}\n")).process("a.fsh", defines);
-        assertEquals("#version 120\n#define SAMPLES 8\n#define USE_FAST\n#line 1 0\nvoid main() {}\n", out.source());
+        assertEquals(
+                "#version 410 core\n#define SAMPLES 8\n#define USE_FAST\n#line 1 0\nvoid main() {}\n", out.source());
         assertEquals(List.of("a.fsh"), out.files());
     }
 
     @Test
-    void entryVersionOverridesDefaultAndKeepsLineNumbers() {
-        var out = of(Map.of("a.fsh", "#version 150 core\nfoo;\n")).process("a.fsh", Map.of());
-        assertEquals("#version 150 core\n#line 1 0\n\nfoo;\n", out.source());
+    void entryMayRepeatTheVersionAndKeepsLineNumbers() {
+        var out = of(Map.of("a.fsh", "#version 410  core\nfoo;\n")).process("a.fsh", Map.of());
+        assertEquals("#version 410 core\n#line 1 0\n\nfoo;\n", out.source());
+    }
+
+    @Test
+    void anyOtherVersionIsRejected() {
+        for (String v : List.of("#version 120", "#version 150 core", "#version 410", "#version 330 core")) {
+            var pre = of(Map.of("a.fsh", v + "\nfoo;\n"));
+            assertThrows(ShaderException.class, () -> pre.process("a.fsh", Map.of()), v);
+        }
     }
 
     @Test
@@ -37,7 +46,7 @@ class ShaderPreprocessorTest {
                 "shaders/a.fsh", "x;\n#include \"lib/b.glsl\"\ny;\n",
                 "shaders/lib/b.glsl", "b1;\nb2;\n");
         var out = of(files).process("shaders/a.fsh", Map.of());
-        assertEquals("#version 120\n#line 1 0\nx;\n#line 1 1\nb1;\nb2;\n#line 3 0\ny;\n", out.source());
+        assertEquals("#version 410 core\n#line 1 0\nx;\n#line 1 1\nb1;\nb2;\n#line 3 0\ny;\n", out.source());
         assertEquals(List.of("shaders/a.fsh", "shaders/lib/b.glsl"), out.files());
     }
 
@@ -101,12 +110,12 @@ class ShaderPreprocessorTest {
     @Test
     void crlfIsNormalized() {
         var out = of(Map.of("a.fsh", "a;\r\nb;\r\n")).process("a.fsh", Map.of());
-        assertEquals("#version 120\n#line 1 0\na;\nb;\n", out.source());
+        assertEquals("#version 410 core\n#line 1 0\na;\nb;\n", out.source());
     }
 
     @Test
     void builtinShadersPreprocess() {
-        var pre = new ShaderPreprocessor(lol.trq.helios.Helios.builtinShaders(), 120);
+        var pre = new ShaderPreprocessor(lol.trq.helios.Helios.builtinShaders());
         var out = pre.process("shape.fsh", Map.of());
         assertEquals(List.of("shape.fsh", "lib/sdf.glsl"), out.files());
         assertTrue(out.source().contains("helios_sdRoundedRect"));

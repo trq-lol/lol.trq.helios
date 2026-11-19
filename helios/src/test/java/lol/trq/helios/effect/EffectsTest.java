@@ -44,7 +44,7 @@ class EffectsTest {
         var out = helios.passes().blur(77, 800, 600, 3, 2);
         assertEquals(800, out.width());
         long quads = gl.calls.subList(before, gl.calls.size()).stream()
-                .filter(c -> c.startsWith("quad"))
+                .filter(c -> c.equals("drawArrays 4 0 3"))
                 .count();
         assertEquals(6, quads);
         assertEquals(1, helios.framebuffers().lentCount());
@@ -76,7 +76,7 @@ class EffectsTest {
     void blurBehindCapturesTheScreenAndDrawsOneImage() {
         helios.effects().blurBehind(10, 10, 100, 50, 8, 0.5f, 2, 1, -1);
         assertTrue(gl.calls.stream().anyMatch(c -> c.startsWith("copy 800x600")));
-        assertTrue(gl.calls.stream().anyMatch(c -> c.equals("drawArrays 7 0 4")));
+        assertTrue(gl.calls.stream().anyMatch(c -> c.startsWith("drawElements 4 6 ")));
         assertEquals(0, helios.framebuffers().lentCount());
     }
 

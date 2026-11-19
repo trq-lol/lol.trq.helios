@@ -26,8 +26,8 @@ import lol.trq.helios.text.TextRenderer;
  * {@code GlStateManager} cache and the window size.
  */
 public final class Helios implements AutoCloseable {
-    /** The GLSL version every built-in shader targets: GLSL 1.20, the OpenGL 2.1 baseline. */
-    public static final int GLSL_VERSION = 120;
+    /** The one GLSL version every shader uses: GLSL 4.10 core, for the OpenGL 4.1 core profile. */
+    public static final String GLSL_VERSION = lol.trq.helios.shader.ShaderPreprocessor.VERSION_LINE;
 
     /** Class path root of the built-in shaders. */
     public static final String SHADER_ROOT = "lol/trq/helios/shaders";
@@ -37,6 +37,7 @@ public final class Helios implements AutoCloseable {
     private final ShaderLoader shaders;
     private final FramebufferPool framebuffers;
     private final ShapeBatch shapes;
+    private final ShapeBatch effectShapes;
     private final Passes passes;
     private final Effects effects;
     private final ScissorStack scissor;
@@ -55,11 +56,12 @@ public final class Helios implements AutoCloseable {
     private Helios(GlBackend gl, GlStateCache cache, SurfaceSize surface, SourceResolver resolver) {
         this.gl = gl;
         this.cache = cache;
-        this.shaders = new ShaderLoader(gl, resolver, GLSL_VERSION);
+        this.shaders = new ShaderLoader(gl, resolver);
         this.framebuffers = new FramebufferPool(gl, surface);
         this.shapes = new ShapeBatch(gl, cache, shaders, BATCH_CAPACITY);
         this.passes = new Passes(gl, cache, framebuffers, shaders);
-        this.effects = new Effects(gl, cache, passes, new ShapeBatch(gl, cache, shaders, 1));
+        this.effectShapes = new ShapeBatch(gl, cache, shaders, 1);
+        this.effects = new Effects(gl, cache, passes, effectShapes);
         this.scissor = new ScissorStack(gl, cache, surface);
         this.text = new TextRenderer(gl);
         this.stencil = new StencilMask(gl, cache, shapes);
@@ -109,11 +111,14 @@ public final class Helios implements AutoCloseable {
     }
 
     /**
-     * Per-frame housekeeping: polls shader hot reload when it is on. Cheap; call it once per frame.
+     * Per-frame housekeeping: rotates the streamed vertex buffers and polls shader hot reload when it is on. Call it
+     * once per frame, after the frame's Helios drawing.
      *
      * @return what hot reload did, or a result with nothing reloaded
      */
     public ShaderHotReload.Result tick() {
+        shapes.endFrame();
+        effectShapes.endFrame();
         return hotReload == null ? new ShaderHotReload.Result(false, java.util.List.of()) : hotReload.poll();
     }
 

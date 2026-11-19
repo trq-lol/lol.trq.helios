@@ -1,7 +1,9 @@
-// Full-screen pass: the quad is given in normalized device coordinates, texture coordinates on unit 0.
-varying vec2 v_uv;
+#version 410 core
+// Full-screen pass: one triangle covering the viewport, built from gl_VertexID, so it needs no vertex buffer.
+out vec2 v_uv;
 
 void main() {
-    v_uv = gl_MultiTexCoord0.xy;
-    gl_Position = vec4(gl_Vertex.xy, 0.0, 1.0);
+    vec2 p = vec2(float((gl_VertexID & 1) << 2) - 1.0, float((gl_VertexID & 2) << 1) - 1.0);
+    v_uv = p * 0.5 + 0.5;
+    gl_Position = vec4(p, 0.0, 1.0);
 }

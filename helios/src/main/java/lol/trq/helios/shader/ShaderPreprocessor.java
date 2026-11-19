@@ -21,26 +21,27 @@ import java.util.regex.Pattern;
  * {@code 0(12)} or {@code 0:12} names the file and line through {@link Preprocessed#describe}.
  *
  * <p>{@code #include "name"} resolves relative to the including file; {@code #include <name>} from the root. A file
- * is included at most once per shader; an include cycle is an error. A {@code #version} line in the entry file
- * overrides the default version; anywhere else it is an error.
+ * is included at most once per shader; an include cycle is an error. Helios has one dialect, GLSL 4.10 core: the
+ * output always declares {@code #version 410 core}, an entry file may repeat exactly that line, and any other
+ * {@code #version} is an error.
  */
 public final class ShaderPreprocessor {
     private static final Pattern INCLUDE = Pattern.compile("^\\s*#\\s*include\\s+([\"<])([^\">]+)[\">]\\s*(//.*)?$");
     private static final Pattern VERSION = Pattern.compile("^\\s*#\\s*version\\s+(\\d+)(\\s+\\w+)?\\s*$");
     private static final Pattern NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
+    /** The one GLSL version every Helios shader uses. */
+    public static final String VERSION_LINE = "410 core";
+
     private final SourceResolver resolver;
-    private final int defaultVersion;
 
     /**
      * Creates a preprocessor.
      *
      * @param resolver loads source files by name
-     * @param defaultVersion the {@code #version} used when the entry file has none
      */
-    public ShaderPreprocessor(SourceResolver resolver, int defaultVersion) {
+    public ShaderPreprocessor(SourceResolver resolver) {
         this.resolver = Objects.requireNonNull(resolver, "resolver");
-        this.defaultVersion = defaultVersion;
     }
 
     /**
@@ -54,11 +55,9 @@ public final class ShaderPreprocessor {
     public Preprocessed process(String entry, Map<String, String> defines) {
         Run run = new Run();
         StringBuilder body = new StringBuilder();
-        String version = run.expand(normalize(entry), body, true);
+        run.expand(normalize(entry), body, true);
         StringBuilder out = new StringBuilder();
-        out.append("#version ")
-                .append(version == null ? Integer.toString(defaultVersion) : version)
-                .append('\n');
+        out.append("#version ").append(VERSION_LINE).append('\n');
         for (Map.Entry<String, String> d : new LinkedHashMap<>(defines).entrySet()) {
             if (!NAME.matcher(d.getKey()).matches()) {
                 throw new ShaderException("invalid define name: " + d.getKey());
@@ -103,7 +102,12 @@ public final class ShaderPreprocessor {
                     if (!isEntry) {
                         throw new ShaderException(name + ":" + lineNo + ": #version is only allowed in the entry file");
                     }
-                    version = v.group(1) + (v.group(2) == null ? "" : v.group(2));
+                    version = v.group(1)
+                            + (v.group(2) == null ? "" : " " + v.group(2).strip());
+                    if (!VERSION_LINE.equals(version)) {
+                        throw new ShaderException(name + ":" + lineNo + ": Helios shaders are #version " + VERSION_LINE
+                                + ", not " + version);
+                    }
                     out.append('\n');
                     continue;
                 }

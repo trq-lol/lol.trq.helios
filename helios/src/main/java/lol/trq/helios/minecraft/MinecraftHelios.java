@@ -5,7 +5,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import lol.trq.helios.Helios;
 import lol.trq.helios.fbo.SurfaceSize;
-import lol.trq.helios.gl.Gl21Backend;
+import lol.trq.helios.gl.Gl41CoreBackend;
 
 /**
  * The Minecraft 1.8.9 hook: every reference to Minecraft's own classes lives in this package, reached by reflection,
@@ -15,14 +15,14 @@ public final class MinecraftHelios {
     private MinecraftHelios() {}
 
     /**
-     * Creates a Helios instance for the running game: the OpenGL 2.1 backend, the {@code GlStateManager} cache and
+     * Creates a Helios instance for the running game: the OpenGL 4.1 core backend (which checks the context), the {@code GlStateManager} cache and
      * the window's framebuffer size. Call it on the render thread once the window exists.
      *
      * @return the instance
      */
     public static Helios create() {
         ClassLoader loader = MinecraftHelios.class.getClassLoader();
-        Gl21Backend gl = new Gl21Backend();
+        Gl41CoreBackend gl = new Gl41CoreBackend();
         MinecraftGlStateCache cache = new MinecraftGlStateCache(loader);
         String dir = System.getProperty(SHADER_DIR_PROPERTY, "");
         if (!dir.isEmpty()) {

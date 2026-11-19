@@ -49,30 +49,6 @@ public interface GlStateCache {
     void cull(boolean on);
 
     /**
-     * Enables or disables the fixed-function alpha test.
-     *
-     * @param on whether the alpha test is on
-     */
-    void alphaTest(boolean on);
-
-    /**
-     * Enables or disables fixed-function 2D texturing on the active unit.
-     *
-     * @param on whether texturing is on
-     */
-    void texture2D(boolean on);
-
-    /**
-     * Sets the current colour.
-     *
-     * @param r red
-     * @param g green
-     * @param b blue
-     * @param a alpha
-     */
-    void color(float r, float g, float b, float a);
-
-    /**
      * Selects the active texture unit.
      *
      * @param unit {@code GL_TEXTURE0} plus the unit number
@@ -95,12 +71,4 @@ public interface GlStateCache {
      * @param a alpha
      */
     void colorMask(boolean r, boolean g, boolean b, boolean a);
-
-    /**
-     * Sets the fixed-function alpha test comparison.
-     *
-     * @param func the comparison, such as {@code GL_GREATER}
-     * @param ref the reference alpha
-     */
-    void alphaFunc(int func, float ref);
 }

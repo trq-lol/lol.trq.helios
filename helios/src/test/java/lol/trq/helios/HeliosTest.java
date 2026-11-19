@@ -13,7 +13,7 @@ class HeliosTest {
     }
 
     @Test
-    void baselineIsGlsl120() {
-        assertEquals(120, Helios.GLSL_VERSION);
+    void glslIs410Core() {
+        assertEquals("410 core", Helios.GLSL_VERSION);
     }
 }

@@ -13,14 +13,11 @@ final class NullGl implements GlBackend, GlStateCache {
 
     @Override
     public int getInteger(int pname) {
-        return pname == STENCIL_BITS ? 8 : 0;
+        return 0;
     }
 
     @Override
     public void getIntegers(int pname, int[] out) {}
-
-    @Override
-    public void getFloats(int pname, float[] out) {}
 
     @Override
     public boolean isEnabled(int cap) {
@@ -35,9 +32,6 @@ final class NullGl implements GlBackend, GlStateCache {
 
     @Override
     public void depthMask(boolean write) {}
-
-    @Override
-    public void color(float r, float g, float b, float a) {}
 
     @Override
     public void viewport(int x, int y, int width, int height) {}
@@ -65,11 +59,6 @@ final class NullGl implements GlBackend, GlStateCache {
 
     @Override
     public int linkProgram(int... shaders) {
-        return next++;
-    }
-
-    @Override
-    public int linkProgram(String[] attributes, int... shaders) {
         return next++;
     }
 
@@ -118,31 +107,12 @@ final class NullGl implements GlBackend, GlStateCache {
     public void clearColorTransparent() {}
 
     @Override
-    public void quad(float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1) {}
-
-    @Override
     public int createBuffer() {
         return next++;
     }
 
     @Override
     public void deleteBuffer(int buffer) {}
-
-    @Override
-    public void bindArrayBuffer(int buffer) {}
-
-    @Override
-    public void streamArrayBuffer(ByteBuffer data) {
-        bytesStreamed += data.remaining();
-    }
-
-    @Override
-    public boolean vertexAttribEnabled(int index) {
-        return false;
-    }
-
-    @Override
-    public void vertexAttribArray(int index, boolean on) {}
 
     @Override
     public void vertexAttribPointer(int index, int size, int type, boolean normalized, int stride, long offset) {}
@@ -193,9 +163,6 @@ final class NullGl implements GlBackend, GlStateCache {
     public void colorMask(boolean r, boolean g, boolean b, boolean a) {}
 
     @Override
-    public void alphaFunc(int func, float ref) {}
-
-    @Override
     public void blend(boolean on) {}
 
     @Override
@@ -208,8 +175,54 @@ final class NullGl implements GlBackend, GlStateCache {
     public void cull(boolean on) {}
 
     @Override
-    public void alphaTest(boolean on) {}
+    public void matrices(float[] modelView, float[] projection) {}
 
     @Override
-    public void texture2D(boolean on) {}
+    public void uniformMatrix4(int location, float[] m) {}
+
+    @Override
+    public int createVertexArray() {
+        return next++;
+    }
+
+    @Override
+    public void deleteVertexArray(int vao) {}
+
+    @Override
+    public void bindVertexArray(int vao) {}
+
+    @Override
+    public void bindBuffer(int target, int buffer) {}
+
+    @Override
+    public void bufferData(int target, ByteBuffer data, int usage) {}
+
+    @Override
+    public void bufferStorage(int target, long size, int usage) {}
+
+    @Override
+    public void bufferSubData(int target, long offset, ByteBuffer data) {
+        bytesStreamed += data.remaining();
+    }
+
+    @Override
+    public void enableVertexAttrib(int index) {}
+
+    @Override
+    public void drawElements(int mode, int count, int type, long offset, int baseVertex) {
+        draws++;
+    }
+
+    @Override
+    public long fence() {
+        return next++;
+    }
+
+    @Override
+    public boolean waitFence(long sync, long timeoutNanos) {
+        return true;
+    }
+
+    @Override
+    public void deleteFence(long sync) {}
 }

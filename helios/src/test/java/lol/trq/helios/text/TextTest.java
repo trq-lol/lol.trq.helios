@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 class TextTest {
     private static MsdfFont inter;
     private final FakeGl gl = new FakeGl();
-    private final ShapeBatch batch = new ShapeBatch(gl, gl, new ShaderLoader(gl, Helios.builtinShaders(), 120), 512);
+    private final ShapeBatch batch = new ShapeBatch(gl, gl, new ShaderLoader(gl, Helios.builtinShaders()), 512);
     private final TextRenderer text = new TextRenderer(gl);
 
     @BeforeAll
