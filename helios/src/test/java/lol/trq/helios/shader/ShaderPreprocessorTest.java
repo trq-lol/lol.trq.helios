@@ -107,9 +107,9 @@ class ShaderPreprocessorTest {
     @Test
     void builtinShadersPreprocess() {
         var pre = new ShaderPreprocessor(lol.trq.helios.Helios.builtinShaders(), 120);
-        var out = pre.process("rounded_rect.fsh", Map.of());
-        assertEquals(List.of("rounded_rect.fsh", "lib/sdf.glsl"), out.files());
+        var out = pre.process("shape.fsh", Map.of());
+        assertEquals(List.of("shape.fsh", "lib/sdf.glsl"), out.files());
         assertTrue(out.source().contains("helios_sdRoundedRect"));
-        pre.process("rounded_rect.vsh", Map.of());
+        pre.process("shape.vsh", Map.of());
     }
 }

@@ -2,11 +2,7 @@
 package lol.trq.helios.sdf;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import lol.trq.helios.FakeGl;
-import lol.trq.helios.gl.GlBackend;
-import lol.trq.helios.shader.ShaderLoader;
 import org.junit.jupiter.api.Test;
 
 class SdfTest {
@@ -64,32 +60,51 @@ class SdfTest {
     }
 
     @Test
-    void rendererGrowsTheQuadByOnePixelAndRestoresState() {
-        FakeGl gl = new FakeGl();
-        gl.enabled.add(GlBackend.ALPHA_TEST);
-        gl.ints.put(GlBackend.CURRENT_PROGRAM, 11);
-        ShaderLoader loader = new ShaderLoader(gl, lol.trq.helios.Helios.builtinShaders(), 120);
-        RoundedRectRenderer r = new RoundedRectRenderer(gl, gl, loader);
-        r.fill(10, 20, 100, 40, 8, 0xFF3B82F6, 0.5f);
-        assertTrue(gl.calls.contains("quad 9.5,19.5,110.5,60.5 uv -50.5,-20.5,50.5,20.5"), gl.calls.toString());
-        assertTrue(gl.isEnabled(GlBackend.ALPHA_TEST));
-        assertTrue(!gl.isEnabled(GlBackend.BLEND));
-        assertEquals(11, gl.getInteger(GlBackend.CURRENT_PROGRAM));
-        assertEquals(
-                "useProgram 11",
-                gl.calls.stream()
-                        .filter(c -> c.startsWith("useProgram"))
-                        .reduce((a, b) -> b)
-                        .orElseThrow());
+    void strokeIsABandInsideTheEdge() {
+        float d = Sdf.roundedRect(48, 0, 50, 20, 0);
+        assertEquals(-2f, d, EPS);
+        assertEquals(-1f, Sdf.stroke(Sdf.roundedRect(49, 0, 50, 20, 0), 2), EPS);
+        assertEquals(0f, Sdf.stroke(d, 2), EPS);
+        assertEquals(3f, Sdf.stroke(Sdf.roundedRect(45, 0, 50, 20, 0), 2), EPS);
     }
 
     @Test
-    void emptyRectDrawsNothing() {
-        FakeGl gl = new FakeGl();
-        RoundedRectRenderer r =
-                new RoundedRectRenderer(gl, gl, new ShaderLoader(gl, lol.trq.helios.Helios.builtinShaders(), 120));
-        gl.calls.clear();
-        r.fill(0, 0, 0, 10, 2, -1, 1);
-        assertTrue(gl.calls.isEmpty());
+    void segmentDistance() {
+        assertEquals(3f, Sdf.segment(5, 3, 0, 0, 10, 0), EPS);
+        assertEquals(5f, Sdf.segment(-3, 4, 0, 0, 10, 0), EPS);
+    }
+
+    @Test
+    void arcInsideSweepIsTheRing() {
+        float half = (float) Math.PI;
+        // Ring from radius 8 to 10, upper half on screen (angles pi..2pi, y negative).
+        assertEquals(-1f, Sdf.arc(0, -9, 10, 2, half, half), 1e-4f);
+        assertEquals(0f, Sdf.arc(0, -10, 10, 2, half, half), 1e-4f);
+        assertEquals(2f, Sdf.arc(0, -12, 10, 2, half, half), 1e-4f);
+    }
+
+    @Test
+    void arcOutsideSweepMeasuresToTheCaps() {
+        float half = (float) Math.PI;
+        // (0, 9) is in the lower half: the nearest cap points are the inner ends (+-8, 0).
+        assertEquals((float) Math.hypot(8, 9), Sdf.arc(0, 9, 10, 2, half, half), 1e-3f);
+        // Just below the cap at angle 0 (the end of the sweep), inside the ring band.
+        assertEquals(0.5f, Sdf.arc(9, 0.5f, 10, 2, half, half), 1e-3f);
+    }
+
+    @Test
+    void fullSweepIsARing() {
+        assertEquals(Sdf.arc(3, 9, 10, 2, 0, Sdf.TAU), Sdf.arc(3, 9, 10, 2, 1, 7), EPS);
+        assertEquals(-1f, Sdf.arc(0, 9, 10, 2, 0, Sdf.TAU), 1e-4f);
+    }
+
+    @Test
+    void shadowAndGlowFalloff() {
+        assertEquals(1f, Sdf.shadow(-4, 4), EPS);
+        assertEquals(0.5f, Sdf.shadow(0, 4), EPS);
+        assertEquals(0f, Sdf.shadow(4, 4), EPS);
+        assertEquals(1f, Sdf.glow(0, 3), EPS);
+        assertEquals(0f, Sdf.glow(-3, 3), EPS);
+        assertEquals(0.5f, Sdf.glow(-1.5f, 3), EPS);
     }
 }

@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: MIT */
 package lol.trq.helios;
 
+import lol.trq.helios.batch.ShapeBatch;
 import lol.trq.helios.fbo.FramebufferPool;
 import lol.trq.helios.fbo.SurfaceSize;
 import lol.trq.helios.gl.GlBackend;
-import lol.trq.helios.sdf.RoundedRectRenderer;
 import lol.trq.helios.shader.ShaderLoader;
 import lol.trq.helios.shader.SourceResolver;
 import lol.trq.helios.state.GlStateCache;
@@ -28,14 +28,17 @@ public final class Helios implements AutoCloseable {
     private final GlStateCache cache;
     private final ShaderLoader shaders;
     private final FramebufferPool framebuffers;
-    private final RoundedRectRenderer rects;
+    private final ShapeBatch shapes;
+
+    /** Shapes per draw call in the default batch. */
+    public static final int BATCH_CAPACITY = 4096;
 
     private Helios(GlBackend gl, GlStateCache cache, SurfaceSize surface, SourceResolver resolver) {
         this.gl = gl;
         this.cache = cache;
         this.shaders = new ShaderLoader(gl, resolver, GLSL_VERSION);
         this.framebuffers = new FramebufferPool(gl, surface);
-        this.rects = new RoundedRectRenderer(gl, cache, shaders);
+        this.shapes = new ShapeBatch(gl, cache, shaders, BATCH_CAPACITY);
     }
 
     /**
@@ -109,12 +112,12 @@ public final class Helios implements AutoCloseable {
     }
 
     /**
-     * Returns the rounded rectangle renderer.
+     * Returns the shape batch.
      *
-     * @return the renderer
+     * @return the batch
      */
-    public RoundedRectRenderer rects() {
-        return rects;
+    public ShapeBatch shapes() {
+        return shapes;
     }
 
     /**
@@ -130,7 +133,7 @@ public final class Helios implements AutoCloseable {
     /** Deletes every GL object this instance owns. */
     @Override
     public void close() {
-        rects.close();
+        shapes.close();
         framebuffers.close();
     }
 }

@@ -52,15 +52,21 @@ final class Checks {
     }
 
     private static void drawTest(Helios helios, HarnessMod.Frame frame) {
-        helios.rects().fill(TEST[0], TEST[1], TEST[2], TEST[3], TEST[4], TEST_COLOR, frame.pixel());
+        helios.shapes()
+                .begin(frame.pixel())
+                .rect(TEST[0], TEST[1], TEST[2], TEST[3], TEST[4], TEST_COLOR)
+                .end();
     }
 
     private static void drawDemo(Helios helios, HarnessMod.Frame frame) {
         float px = frame.pixel();
-        helios.rects().fill(12, 70, 120, 24, 99, 0x80FF4060, px);
-        helios.rects().fill(144, 12, 48, 48, 24, 0xFFF59E0B, px);
-        helios.rects().fill(144.3f, 70.6f, 47.5f, 23.2f, 6, 0xFF10B981, px);
-        helios.rects().fill(204, 12, 2.5f, 82, 1.25f, 0xFFFFFFFF, px);
+        helios.shapes().begin(px).rect(12, 70, 120, 24, 99, 0x80FF4060).end();
+        helios.shapes().begin(px).rect(144, 12, 48, 48, 24, 0xFFF59E0B).end();
+        helios.shapes()
+                .begin(px)
+                .rect(144.3f, 70.6f, 47.5f, 23.2f, 6, 0xFF10B981)
+                .end();
+        helios.shapes().begin(px).rect(204, 12, 2.5f, 82, 1.25f, 0xFFFFFFFF).end();
     }
 
     boolean run() {

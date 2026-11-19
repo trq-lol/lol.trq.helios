@@ -1,0 +1,170 @@
+/* SPDX-License-Identifier: MIT */
+package lol.trq.helios.batch;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+import lol.trq.helios.FakeGl;
+import lol.trq.helios.Helios;
+import lol.trq.helios.gl.GlBackend;
+import lol.trq.helios.shader.ShaderLoader;
+import org.junit.jupiter.api.Test;
+
+class ShapeBatchTest {
+    private final FakeGl gl = new FakeGl();
+    private final ShapeBatch batch = new ShapeBatch(gl, gl, new ShaderLoader(gl, Helios.builtinShaders(), 120), 3);
+
+    /** One decoded vertex. */
+    record V(float x, float y, float lx, float ly, float[] shape, float[] params, float u, float v, int[] colors) {}
+
+    static List<V> vertices(ByteBuffer b) {
+        b = b.duplicate().order(java.nio.ByteOrder.nativeOrder());
+        java.util.ArrayList<V> out = new java.util.ArrayList<>();
+        while (b.remaining() >= ShapeBatch.STRIDE) {
+            float x = b.getFloat(), y = b.getFloat(), lx = b.getFloat(), ly = b.getFloat();
+            float[] shape = {b.getFloat(), b.getFloat(), b.getFloat(), b.getFloat()};
+            float[] params = {b.getFloat(), b.getFloat(), b.getFloat(), b.getFloat()};
+            float u = b.getFloat(), v = b.getFloat();
+            int[] colors = new int[4];
+            for (int i = 0; i < 4; i++) {
+                int r = b.get() & 0xFF, g = b.get() & 0xFF, bl = b.get() & 0xFF, a = b.get() & 0xFF;
+                colors[i] = a << 24 | r << 16 | g << 8 | bl;
+            }
+            out.add(new V(x, y, lx, ly, shape, params, u, v, colors));
+        }
+        return out;
+    }
+
+    @Test
+    void attributesAreBoundInLayoutOrder() {
+        assertArrayEquals(ShapeBatch.ATTRIBUTES.toArray(new String[0]), gl.linkedAttributes.get(0));
+        assertEquals("a_pos", gl.linkedAttributes.get(0)[0]);
+    }
+
+    @Test
+    void rectIsOneQuadGrownByOnePixel() {
+        batch.begin(0.5f).rect(10, 20, 100, 40, 8, 0xFF3B82F6).end();
+        List<V> v = vertices(gl.streamed.get(0));
+        assertEquals(4, v.size());
+        assertEquals(9.5f, v.get(0).x());
+        assertEquals(19.5f, v.get(0).y());
+        assertEquals(110.5f, v.get(2).x());
+        assertEquals(60.5f, v.get(2).y());
+        assertEquals(-50.5f, v.get(0).lx());
+        assertArrayEquals(
+                new float[] {50, 20, 8, ShapeBatch.KIND_RECT}, v.get(0).shape());
+        for (V vert : v) {
+            assertArrayEquals(new int[] {0xFF3B82F6, 0xFF3B82F6, 0xFF3B82F6, 0xFF3B82F6}, vert.colors());
+        }
+        assertTrue(gl.calls.contains("drawArrays " + GlBackend.QUADS + " 0 4"));
+    }
+
+    @Test
+    void manyShapesShareOneDrawCallUntilFull() {
+        batch.begin(1);
+        batch.rect(0, 0, 1, 1, 0, -1).circle(5, 5, 2, Paint.solid(-1)).outline(0, 0, 9, 9, 2, 1, Paint.solid(-1));
+        batch.rect(0, 0, 1, 1, 0, -1);
+        batch.end();
+        assertEquals(2, batch.drawCalls());
+        assertTrue(gl.calls.contains("drawArrays 7 0 12"));
+        assertTrue(gl.calls.contains("drawArrays 7 0 4"));
+    }
+
+    @Test
+    void flushRestoresEveryState() {
+        gl.attribsEnabled.add(2);
+        gl.ints.put(GlBackend.CURRENT_PROGRAM, 5);
+        gl.ints.put(GlBackend.ARRAY_BUFFER_BINDING, 9);
+        batch.begin(1).rect(0, 0, 4, 4, 1, -1).end();
+        assertEquals(java.util.Set.of(2), gl.attribsEnabled);
+        assertEquals(5, gl.getInteger(GlBackend.CURRENT_PROGRAM));
+        assertEquals(9, gl.getInteger(GlBackend.ARRAY_BUFFER_BINDING));
+        assertFalse(gl.isEnabled(GlBackend.BLEND));
+    }
+
+    @Test
+    void lineIsARotatedCapsule() {
+        batch.begin(1).line(0, 0, 0, 10, 2, true, Paint.solid(-1)).end();
+        List<V> v = vertices(gl.streamed.get(0));
+        // Half length 5 + cap 1 = 6 along +y; half width 1; radius 1.
+        assertArrayEquals(new float[] {6, 1, 1, ShapeBatch.KIND_RECT}, v.get(0).shape());
+        // First corner is local (-7, -2): along the axis -7 maps to y = 5 - 7, across it -2 maps to x = +2.
+        assertEquals(2f, v.get(0).x(), 1e-5);
+        assertEquals(-2f, v.get(0).y(), 1e-5);
+    }
+
+    @Test
+    void arcCarriesAnglesAndRejectsRadialPaint() {
+        batch.begin(1).arc(50, 50, 10, 3, 1f, 2f, Paint.solid(-1)).end();
+        V v = vertices(gl.streamed.get(0)).get(0);
+        assertArrayEquals(new float[] {10, 3, 0, ShapeBatch.KIND_ARC}, v.shape());
+        assertEquals(1f, v.params()[2]);
+        assertEquals(2f, v.params()[3]);
+        batch.begin(1);
+        assertThrows(IllegalArgumentException.class, () -> batch.arc(0, 0, 5, 1, 0, 1, Paint.radial(-1, 0, 0)));
+        batch.end();
+    }
+
+    @Test
+    void radialPaintDefaultsToTheLargerHalfExtent() {
+        batch.begin(1)
+                .rect(0, 0, 40, 20, 0, Paint.radial(0xFFFFFFFF, 0xFF000000, 0))
+                .end();
+        V v = vertices(gl.streamed.get(0)).get(0);
+        assertEquals(1f, v.params()[1]);
+        assertEquals(20f, v.params()[2]);
+    }
+
+    @Test
+    void shadowQuadIsGrownBySoftness() {
+        batch.begin(1).shadow(10, 10, 20, 20, 4, 6, 0x80000000).end();
+        V v = vertices(gl.streamed.get(0)).get(0);
+        assertEquals(10 - 6 - 1f, v.x());
+        assertEquals(6f, v.params()[0]);
+        assertEquals((float) ShapeBatch.KIND_SHADOW, v.shape()[3]);
+    }
+
+    @Test
+    void imagesFlushOnTextureChangeAndBindTheirTexture() {
+        batch.begin(1);
+        batch.image(11, 0, 0, 10, 10, 0, 0, 0, 1, 1, -1);
+        batch.image(11, 20, 0, 10, 10, 0, 0, 0, 1, 1, -1);
+        batch.image(12, 40, 0, 10, 10, 0, 0, 0, 1, 1, -1);
+        batch.end();
+        assertEquals(2, batch.drawCalls());
+        assertTrue(gl.calls.contains("bindTexture 11"));
+        assertTrue(gl.calls.contains("bindTexture 12"));
+        V first = vertices(gl.streamed.get(0)).get(0);
+        // Grown by one pixel on a 10 wide image: u extrapolates to -0.1.
+        assertEquals(-0.1f, first.u(), 1e-5);
+    }
+
+    @Test
+    void addingOutsideBeginThrows() {
+        assertThrows(IllegalStateException.class, () -> batch.rect(0, 0, 1, 1, 0, -1));
+        batch.begin(1);
+        assertThrows(IllegalStateException.class, () -> batch.begin(1));
+        batch.end();
+        assertThrows(IllegalStateException.class, batch::end);
+    }
+
+    @Test
+    void emptyShapesAreSkipped() {
+        batch.begin(1).rect(0, 0, 0, 5, 0, -1).end();
+        assertEquals(0, batch.drawCalls());
+        assertTrue(gl.streamed.isEmpty());
+    }
+
+    @Test
+    void closeDeletesBuffer() {
+        batch.begin(1).rect(0, 0, 1, 1, 0, -1).end();
+        batch.close();
+        assertTrue(gl.liveBuffers.isEmpty());
+        assertTrue(gl.livePrograms.isEmpty());
+    }
+}
