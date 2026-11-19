@@ -5,6 +5,29 @@ plugins {
 
 base.archivesName = 'lol.trq.helios'
 
+evaluationDependsOn(':fontgen')
+
+// The bundled font atlas is generated at build time from fonts/inter by the fontgen module.
+def fontsDir = layout.buildDirectory.dir('generated/fonts')
+def generateFonts = tasks.register('generateFonts', JavaExec) {
+    group = 'helios'
+    description = 'Builds the bundled MSDF font atlases.'
+    def ttf = rootProject.file('fonts/inter/Inter-Regular.ttf')
+    def out = fontsDir.get().file('lol/trq/helios/fonts/inter.hfnt').asFile
+    def preview = layout.buildDirectory.file('fontgen/inter.png').get().asFile
+    inputs.file(ttf)
+    inputs.files(project(':fontgen').sourceSets.main.runtimeClasspath)
+    outputs.dir(fontsDir)
+    outputs.file(preview)
+    classpath = project(':fontgen').sourceSets.main.runtimeClasspath
+    mainClass = 'lol.trq.helios.fontgen.FontGen'
+    systemProperty 'java.awt.headless', 'true'
+    args '--font', ttf.absolutePath, '--out', out.absolutePath, '--name', 'inter', '--size', '40', '--range', '4',
+        '--png', preview.absolutePath
+    doFirst { preview.parentFile.mkdirs() }
+}
+sourceSets.main.resources.srcDir(files(fontsDir).builtBy(generateFonts))
+
 java {
     withSourcesJar()
 }
@@ -21,6 +44,7 @@ dependencies {
 test {
     useJUnitPlatform()
 }
+
 
 tasks.named('jar') {
     manifest {

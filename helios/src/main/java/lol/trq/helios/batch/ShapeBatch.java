@@ -33,6 +33,7 @@ public final class ShapeBatch implements AutoCloseable {
     static final int KIND_SHADOW = 2;
     static final int KIND_GLOW = 3;
     static final int KIND_IMAGE = 4;
+    static final int KIND_GLYPH = 5;
 
     /** Attribute names, bound to their index. */
     public static final List<String> ATTRIBUTES =
@@ -50,6 +51,7 @@ public final class ShapeBatch implements AutoCloseable {
     private float pixel;
     private boolean drawing;
     private int drawCalls;
+    private float alphaCutoff;
 
     /**
      * Creates a batch.
@@ -93,6 +95,98 @@ public final class ShapeBatch implements AutoCloseable {
         requireDrawing();
         flush();
         drawing = false;
+    }
+
+    /**
+     * Discards fragments whose alpha is at or below a cutoff, through the fixed-function alpha test. Stencil masks use
+     * it so only the inside of a shape is written. 0 turns it off.
+     *
+     * @param cutoff the alpha below which fragments are dropped, in {@code [0, 1)}
+     */
+    public void alphaCutoff(float cutoff) {
+        this.alphaCutoff = cutoff;
+    }
+
+    /**
+     * Returns the pixel size given to {@link #begin(float)}.
+     *
+     * @return one framebuffer pixel in drawing units
+     */
+    public float pixel() {
+        return pixel;
+    }
+
+    /**
+     * Returns whether the batch is between {@link #begin(float)} and {@link #end()}.
+     *
+     * @return true while drawing
+     */
+    public boolean drawing() {
+        return drawing;
+    }
+
+    /**
+     * One glyph from a multi-channel signed distance field atlas. Text layout lives in
+     * {@link lol.trq.helios.text.TextRenderer}; this is the primitive it draws with.
+     *
+     * @param textureId the atlas texture
+     * @param x0 quad left
+     * @param y0 quad top
+     * @param x1 quad right
+     * @param y1 quad bottom
+     * @param skewTop horizontal offset of the top edge, for italics
+     * @param skewBottom horizontal offset of the bottom edge
+     * @param u0 atlas left
+     * @param v0 atlas top
+     * @param u1 atlas right
+     * @param v1 atlas bottom
+     * @param argb the colour
+     * @param pxRange the atlas distance range in texels
+     * @param weight extra thickness in field units (range / 2 texels is 0.5); 0 for regular
+     * @param softness edge softness in framebuffer pixels, for soft shadows; 0 for a crisp one-pixel edge
+     * @param atlasWidth atlas width in texels
+     * @param atlasHeight atlas height in texels
+     * @return this batch
+     */
+    public ShapeBatch glyph(
+            int textureId,
+            float x0,
+            float y0,
+            float x1,
+            float y1,
+            float skewTop,
+            float skewBottom,
+            float u0,
+            float v0,
+            float u1,
+            float v1,
+            int argb,
+            float pxRange,
+            float weight,
+            float softness,
+            int atlasWidth,
+            int atlasHeight) {
+        requireDrawing();
+        if (x1 <= x0 || y1 <= y0) {
+            return this;
+        }
+        if (texture != 0 && texture != textureId) {
+            flush();
+        }
+        if (count == capacity) {
+            flush();
+        }
+        texture = textureId;
+        float hw = (x1 - x0) / 2;
+        float hh = (y1 - y0) / 2;
+        colors[0] = colors[1] = colors[2] = colors[3] = argb;
+        float k = KIND_GLYPH;
+        vertex(x0 + skewTop, y0, -hw, -hh, hw, hh, softness, k, pxRange, weight, atlasWidth, atlasHeight, u0, v0);
+        vertex(x1 + skewTop, y0, hw, -hh, hw, hh, softness, k, pxRange, weight, atlasWidth, atlasHeight, u1, v0);
+        vertex(x1 + skewBottom, y1, hw, hh, hw, hh, softness, k, pxRange, weight, atlasWidth, atlasHeight, u1, v1);
+        vertex(x0 + skewBottom, y1, -hw, hh, hw, hh, softness, k, pxRange, weight, atlasWidth, atlasHeight, u0, v1);
+        count++;
+        return this;
     }
 
     /**
@@ -455,14 +549,46 @@ public final class ShapeBatch implements AutoCloseable {
             float v0,
             float u1,
             float v1) {
+        vertex(
+                cx + lx * ax - ly * ay,
+                cy + lx * ay + ly * ax,
+                lx,
+                ly,
+                s0,
+                s1,
+                s2,
+                kind,
+                p0,
+                p1,
+                p2,
+                p3,
+                u0 + (lx + hw) / (2 * hw) * (u1 - u0),
+                v0 + (ly + hh) / (2 * hh) * (v1 - v0));
+    }
+
+    private void vertex(
+            float x,
+            float y,
+            float lx,
+            float ly,
+            float s0,
+            float s1,
+            float s2,
+            float kind,
+            float p0,
+            float p1,
+            float p2,
+            float p3,
+            float u,
+            float v) {
         ByteBuffer b = vertices;
-        b.putFloat(cx + lx * ax - ly * ay).putFloat(cy + lx * ay + ly * ax);
+        b.putFloat(x).putFloat(y);
         b.putFloat(lx).putFloat(ly);
         b.putFloat(s0).putFloat(s1).putFloat(s2).putFloat(kind);
         b.putFloat(p0).putFloat(p1).putFloat(p2).putFloat(p3);
-        b.putFloat(u0 + (lx + hw) / (2 * hw) * (u1 - u0)).putFloat(v0 + (ly + hh) / (2 * hh) * (v1 - v0));
+        b.putFloat(u).putFloat(v);
         for (int c : colors) {
-            b.put((byte) (c >>> 16)).put((byte) (c >>> 8)).put((byte) c).put((byte) (c >>> 24));
+            b.putInt(rgbaBytes(c));
         }
     }
 
@@ -482,10 +608,13 @@ public final class ShapeBatch implements AutoCloseable {
                             GlBackend.ONE_MINUS_SRC_ALPHA,
                             GlBackend.ONE,
                             GlBackend.ONE_MINUS_SRC_ALPHA)
-                    .alphaTest(false)
+                    .alphaTest(alphaCutoff > 0)
                     .cull(false)
                     .program(program.id())
                     .arrayBuffer(vbo);
+            if (alphaCutoff > 0) {
+                g.alphaFunc(GlBackend.GREATER, alphaCutoff);
+            }
             if (texture != 0) {
                 g.texture(0, texture);
             }
@@ -509,6 +638,14 @@ public final class ShapeBatch implements AutoCloseable {
             count = 0;
             texture = 0;
         }
+    }
+
+    private static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
+
+    /** Reorders {@code 0xAARRGGBB} so a native-order int write lays down the bytes R, G, B, A. */
+    private static int rgbaBytes(int argb) {
+        int abgr = (argb & 0xFF00FF00) | ((argb >>> 16) & 0xFF) | ((argb & 0xFF) << 16);
+        return LITTLE_ENDIAN ? abgr : Integer.reverseBytes(abgr);
     }
 
     private void requireDrawing() {

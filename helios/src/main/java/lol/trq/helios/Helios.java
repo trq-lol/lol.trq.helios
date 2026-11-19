@@ -13,6 +13,8 @@ import lol.trq.helios.shader.SourceResolver;
 import lol.trq.helios.state.GlStateCache;
 import lol.trq.helios.state.ScissorStack;
 import lol.trq.helios.state.StateGuard;
+import lol.trq.helios.text.MsdfFont;
+import lol.trq.helios.text.TextRenderer;
 
 /**
  * One Helios instance per GL context: the backend, the host's state cache, shaders, the framebuffer pool and the
@@ -37,6 +39,12 @@ public final class Helios implements AutoCloseable {
     private final Effects effects;
     private final ScissorStack scissor;
 
+    private final TextRenderer text;
+    private MsdfFont defaultFont;
+
+    /** Class path location of the bundled font, Inter Regular (SIL Open Font License 1.1). */
+    public static final String DEFAULT_FONT = "lol/trq/helios/fonts/inter.hfnt";
+
     /** Shapes per draw call in the default batch. */
     public static final int BATCH_CAPACITY = 4096;
 
@@ -49,6 +57,7 @@ public final class Helios implements AutoCloseable {
         this.passes = new Passes(gl, cache, framebuffers, shaders);
         this.effects = new Effects(gl, cache, passes, new ShapeBatch(gl, cache, shaders, 1));
         this.scissor = new ScissorStack(gl, cache, surface);
+        this.text = new TextRenderer(gl);
     }
 
     /**
@@ -158,6 +167,27 @@ public final class Helios implements AutoCloseable {
     }
 
     /**
+     * Returns the text renderer.
+     *
+     * @return the renderer
+     */
+    public TextRenderer text() {
+        return text;
+    }
+
+    /**
+     * Returns the bundled font, Inter Regular, loading it on first use.
+     *
+     * @return the font
+     */
+    public MsdfFont defaultFont() {
+        if (defaultFont == null) {
+            defaultFont = MsdfFont.resource(Helios.class.getClassLoader(), DEFAULT_FONT);
+        }
+        return defaultFont;
+    }
+
+    /**
      * Starts a new post-processing chain.
      *
      * @return an empty chain
@@ -180,6 +210,9 @@ public final class Helios implements AutoCloseable {
     @Override
     public void close() {
         shapes.close();
+        if (defaultFont != null) {
+            defaultFont.close();
+        }
         effects.close();
         passes.close();
         framebuffers.close();

@@ -21,6 +21,8 @@ public final class Paint {
     final int c2;
     final int c3;
     final float value;
+    private final float cos;
+    private final float sin;
 
     private Paint(Mode mode, int c0, int c1, int c2, int c3, float value) {
         this.mode = mode;
@@ -29,6 +31,8 @@ public final class Paint {
         this.c2 = c2;
         this.c3 = c3;
         this.value = value;
+        this.cos = (float) Math.cos(value);
+        this.sin = (float) Math.sin(value);
     }
 
     /**
@@ -120,14 +124,13 @@ public final class Paint {
             out[3] = c3;
             return;
         }
-        float dx = (float) Math.cos(value);
-        float dy = (float) Math.sin(value);
+        float dx = cos;
+        float dy = sin;
         float extent = Math.abs(halfWidth * dx) + Math.abs(halfHeight * dy);
-        float[][] corner = {
-            {-halfWidth, -halfHeight}, {halfWidth, -halfHeight}, {halfWidth, halfHeight}, {-halfWidth, halfHeight}
-        };
         for (int i = 0; i < 4; i++) {
-            float t = extent <= 0 ? 0.5f : (corner[i][0] * dx + corner[i][1] * dy) / extent * 0.5f + 0.5f;
+            float cx = i == 1 || i == 2 ? halfWidth : -halfWidth;
+            float cy = i >= 2 ? halfHeight : -halfHeight;
+            float t = extent <= 0 ? 0.5f : (cx * dx + cy * dy) / extent * 0.5f + 0.5f;
             out[i] = lerp(c0, c1, t);
         }
     }
