@@ -9,6 +9,8 @@
 - [CLAUDE.md](CLAUDE.md): mental model, patterns that matter, traps
 - [CHANGELOG](CHANGELOG.md): release notes
 - [CONTRIBUTING](CONTRIBUTING.md): commit and test conventions
+- [BENCHMARKS](BENCHMARKS.md): CPU and GPU numbers, how to run them
+- [NOTICE](NOTICE.md): msdfgen port and the Inter font
 
 ## Core source
 
@@ -29,6 +31,12 @@
 - [Effects](helios/src/main/java/lol/trq/helios/effect/Effects.java): blur behind a shape, bloom
 - [PostChain](helios/src/main/java/lol/trq/helios/effect/PostChain.java): chained full-screen passes
 - [ScissorStack](helios/src/main/java/lol/trq/helios/state/ScissorStack.java): nested clipping
+- [StencilMask](helios/src/main/java/lol/trq/helios/state/StencilMask.java): clip to any shape
+- [MsdfFont](helios/src/main/java/lol/trq/helios/text/MsdfFont.java): .hfnt font loading, glyphs, kerning, atlas
+- [TextRenderer](helios/src/main/java/lol/trq/helios/text/TextRenderer.java) and [TextStyle](helios/src/main/java/lol/trq/helios/text/TextStyle.java): layout, codes, shadows
+- [ShaderHotReload](helios/src/main/java/lol/trq/helios/shader/ShaderHotReload.java): development hot reload
+- [AtlasBuilder](fontgen/src/main/java/lol/trq/helios/fontgen/AtlasBuilder.java) and [FontGen](fontgen/src/main/java/lol/trq/helios/fontgen/FontGen.java): atlas building and its command line
+- [MsdfGenerator](fontgen/src/main/java/lol/trq/helios/fontgen/MsdfGenerator.java), [EdgeColoring](fontgen/src/main/java/lol/trq/helios/fontgen/EdgeColoring.java), [EdgeSegment](fontgen/src/main/java/lol/trq/helios/fontgen/EdgeSegment.java): the msdfgen port
 - [MinecraftHelios](helios/src/main/java/lol/trq/helios/minecraft/MinecraftHelios.java) and [MinecraftGlStateCache](helios/src/main/java/lol/trq/helios/minecraft/MinecraftGlStateCache.java): the Minecraft hook
 
 ## Examples
@@ -41,6 +49,11 @@
 - [ShapeBatchTest](helios/src/test/java/lol/trq/helios/batch/ShapeBatchTest.java): vertex layout, batching, flushes
 - [EffectsTest](helios/src/test/java/lol/trq/helios/effect/EffectsTest.java): blur levels, bloom, post chain
 - [ScissorStackTest](helios/src/test/java/lol/trq/helios/state/ScissorStackTest.java): clip conversion and nesting
+- [TextTest](helios/src/test/java/lol/trq/helios/text/TextTest.java): font loading, widths, kerning, codes, shadows
+- [StencilMaskTest](helios/src/test/java/lol/trq/helios/state/StencilMaskTest.java): mask and content state
+- [ShaderHotReloadTest](helios/src/test/java/lol/trq/helios/shader/ShaderHotReloadTest.java): change detection, failed reloads
+- [FontGenTest](fontgen/src/test/java/lol/trq/helios/fontgen/FontGenTest.java): distances, colouring, glyphs against the rasterizer
+- [HeliosBench](helios/src/jmh/java/lol/trq/helios/bench/HeliosBench.java): CPU benchmarks
 - [HarnessMod](harness-mod/src/main/java/lol/trq/helios/harness/mod/HarnessMod.java) and [Checks](harness-mod/src/main/java/lol/trq/helios/harness/mod/Checks.java): in-game use and checks; [Model](harness-mod/src/main/java/lol/trq/helios/harness/mod/Model.java): software model of the shape shader
 
 ## Optional

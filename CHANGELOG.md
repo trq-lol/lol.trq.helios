@@ -19,6 +19,14 @@ project uses [Semantic Versioning](https://semver.org/).
 - Effects: dual Kawase blur, blur behind a shape, bloom, post-processing chains of custom full-screen passes.
 - `ScissorStack` for nested clipping; `StateGuard` covers texture units, the array buffer, vertex attribute arrays
   and scissor state.
+- MSDF text: `MsdfFont` (`.hfnt` atlases), `TextRenderer` with kerning, `§` colour and format codes (bold, italic,
+  underline, strikethrough, obfuscated), classic and soft shadows, weight and letter spacing; glyphs share the
+  shape batch. Inter Regular is bundled.
+- `fontgen`: a Java port of msdfgen's generator that builds `.hfnt` atlases from TrueType and OpenType fonts at build
+  time.
+- `StencilMask` to clip drawing to any shape; `MinecraftHelios.enableStencil()`.
+- Shader hot reload from a source directory (`-Dhelios.shaderDir`, `Helios.tick()`).
+- JMH benchmarks and harness GPU timings; see `BENCHMARKS.md`.
 - `MinecraftHelios`: wiring for Forge 1.8.9, by reflection, no Mixin.
 - Development harness that boots Forge 1.8.9 on LWJGL 3 through lol.trq.lazarus and checks rendering in game:
   every primitive against a software model, blur and bloom against reference images; also run in CI under Xvfb.

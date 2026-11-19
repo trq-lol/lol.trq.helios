@@ -15,6 +15,10 @@ Helios (one per GL context)
   ShapeBatch           72-byte vertices in a streamed VBO, one quad per shape, GL_QUADS; kind + params per vertex;
                        flushes when full, on a texture change, at end(); each flush is one guarded draw
   Passes / Effects     screen capture, dual Kawase blur, composite; blurBehind, bloom; PostChain; ScissorStack
+  StencilMask          mask drawn with alpha cutoff 0.5 into the stencil, then content with EQUAL / NOTEQUAL
+  TextRenderer         MsdfFont (.hfnt: metrics, kerning, deflated RGB atlas) -> layout -> ShapeBatch.glyph (kind 5)
+  ShaderHotReload      dev only: polls source mtimes, ShaderLoader.reloadAll(); Helios.tick() drives it
+fontgen/               build-time msdfgen port: AWT outline -> GlyphShape -> EdgeColoring -> MsdfGenerator -> .hfnt
 minecraft/             the only Minecraft-aware package: reflection with SRG names, MCP fallback
 ```
 
@@ -31,6 +35,10 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
   those are wrong at tight curves and corners and cost 10+/255 at round caps.
 - **The vertex layout lives in three places**: `ShapeBatch` (writer and attribute list), `shape.vsh`, and
   `ShapeBatchTest` (decoder). Change them together. Attribute 0 must be the position: GL 2.1 draws nothing without it.
+- **The `.hfnt` format has two sides**: `AtlasBuilder.write` (fontgen) and `MsdfFont` (helios). Bump
+  `VERSION` in both when it changes.
+- **Measure, then optimize.** Hot paths (batch emit, text layout, guards) are allocation-light; run
+  `./gradlew :helios:jmh` before and after a change there and update `BENCHMARKS.md`.
 - **Prove it in the game.** A rendering change runs `./gradlew :harness:runHarness25` (and with `-Poptifine=<jar>`);
   every `HELIOS-HARNESS check` line must pass. Look at the screenshots.
 
@@ -40,6 +48,10 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
   `stable_22` mappings, and keep the MCP name as the fallback.
 - OptiFine leaves different alpha blend factors behind in GUI code; never assume a default, save and restore.
 - Effects that capture the screen assume drawing units are screen space from the top left (a GUI screen).
+- A fresh pooled depth-stencil framebuffer holds garbage depth; GUI code leaves the depth test on. Clear depth or
+  turn the test off before drawing into one.
+- Forge `Framebuffer.enableStencil()` recreates the framebuffer and leaves nothing bound;
+  `MinecraftHelios.enableStencil()` binds it again.
 - Vertex attribute pointers are not restored (code using generic attribute arrays sets its pointers before drawing);
   their enable flags are.
 - The harness opens a game window. Do not launch it from an agent without the owner's go-ahead.

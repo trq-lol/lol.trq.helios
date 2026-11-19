@@ -3,7 +3,7 @@
 A rendering library for Minecraft Forge 1.8.9 running on LWJGL 3: SDF shapes, MSDF text, shaders, framebuffers,
 blur and bloom, with strict GL state discipline so vanilla and OptiFine keep a coherent state.
 
-Status: early development (milestone H1), nothing released yet. See [CHANGELOG.md](CHANGELOG.md).
+Status: early development (milestone H2), nothing released yet. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements
 
@@ -18,11 +18,12 @@ Status: early development (milestone H1), nothing released yet. See [CHANGELOG.m
 |---|---|
 | `lol.trq.helios` | `Helios`: one instance per GL context, owning the pieces below |
 | `gl` | `GlBackend`, the seam every GL call goes through; `Gl21Backend`, the OpenGL 2.1 baseline |
-| `state` | `StateGuard` saves what a draw touches and restores it; `GlStateCache` routes cached state through the host; `ScissorStack` for nested clips |
+| `state` | `StateGuard` saves what a draw touches and restores it; `GlStateCache` routes cached state through the host; `ScissorStack` for nested clips; `StencilMask` to clip to any shape |
 | `shader` | Loader with `#include`, defines, `file:line` errors, attribute binding, a uniform location cache and reload |
 | `fbo` | `FramebufferPool`, sized in framebuffer pixels so effects stay sharp on high-DPI screens |
 | `batch` | `ShapeBatch`: rounded rects, outlines, circles, arcs, lines, polylines, drop shadows, inner glow and images, many per draw call, all anti-aliased over exactly one pixel; `Paint` for solid, corner, linear and radial gradients |
 | `effect` | Dual Kawase blur, blur behind a shape (frosted glass), bloom, post-processing chains |
+| `text` | MSDF text: `MsdfFont`, `TextRenderer` (kerning, `§` colour and format codes, classic and soft shadows), `TextStyle`; Inter is bundled |
 | `sdf` | The distance functions of the shape shader, in Java, for tests |
 | `minecraft` | The only package that knows Minecraft: `GlStateManager` routing and the window size, by reflection |
 
@@ -53,6 +54,44 @@ helios.effects().bloom(() -> helios.shapes().begin(pixel).circle(60, 140, 10, Pa
 
 Angles are in radians, 0 along +x, growing clockwise on screen. Colours are `0xAARRGGBB`, not premultiplied.
 
+### Text
+
+```java
+TextStyle title = TextStyle.builder(helios.defaultFont()).size(14).shadow(TextStyle.Shadow.SOFT).build();
+TextStyle body = TextStyle.builder(helios.defaultFont()).size(9).build();
+
+ShapeBatch b = helios.shapes().begin(pixel);
+helios.text().draw(b, "Settings", 12, 12, title);
+helios.text().draw(b, "§aEnabled §7(press §lR§r§7 to reset)", 12, 30, body);
+b.end(); // text and shapes share the batch, in order
+
+float w = helios.text().width("Settings", title);
+```
+
+Text is drawn from a multi-channel signed distance field atlas, so it stays sharp at any size and scale. The
+bundled font is [Inter](https://github.com/rsms/inter) Regular. To use another font, build an atlas with the
+`fontgen` module and load it with `MsdfFont.read`:
+
+```
+./gradlew :fontgen:run --args="--font MyFont.ttf --out myfont.hfnt --size 40 --range 4 --png preview.png"
+```
+
+### Stencil clipping
+
+```java
+MinecraftHelios.enableStencil(); // once: gives the main framebuffer a stencil buffer
+helios.stencil().clip(
+        () -> helios.shapes().begin(pixel).circle(40, 40, 24, Paint.solid(-1)).end(), // the mask
+        true,                                                                          // keep the inside
+        () -> drawAvatar());
+```
+
+### Shader hot reload
+
+Start the game with `-Dhelios.shaderDir=<path to helios/src/main/resources/lol/trq/helios/shaders>` and call
+`helios.tick()` once per frame. Edited shaders are rebuilt within a quarter of a second; one that fails to compile
+keeps its last good version and the error, with `file:line`, comes back from `tick()`.
+
 Your own GL work goes through a guard:
 
 ```java
@@ -65,7 +104,8 @@ try (StateGuard g = helios.guard()) {
 ## Building and testing
 
 ```
-./gradlew spotlessCheck build        # unit tests, no GL needed
+./gradlew spotlessCheck build        # unit tests, no GL needed; also builds the font atlas
+./gradlew :helios:jmh                # CPU benchmarks, see BENCHMARKS.md
 ./gradlew :harness:runHarness25      # boots the game, checks pixels and GL state on the main menu, exits
 ./gradlew :harness:runHarness21 -Poptifine=<path to an OptiFine 1.8.9 jar>
 ```
@@ -77,11 +117,14 @@ The harness downloads Minecraft 1.8.9, Forge and the lol.trq.lazarus release jar
 - checks that many shapes go out in one draw call;
 - compares blur and bloom with reference images in `harness/references/` (per framebuffer size; refresh them with
   `-PupdateReferences`, require them with `-PrequireReferences`);
-- runs a post-processing chain and the scissor stack offscreen;
+- draws one glyph and compares each pixel with a software model of the MSDF shader;
+- compares text and stencil clipping with reference images;
+- runs a post-processing chain, the scissor stack and stencil masks offscreen;
 - checks that GL state is unchanged afterwards and that the `GlStateManager` cache still matches GL;
 - saves screenshots to `harness/build/run/<task>/helios/` and exits 0 only if every check passed.
 
-It opens a game window while it runs. OptiFine cannot be redistributed: point `-Poptifine` at a local copy. CI runs
+With `-Pbench` it also prints GPU timings; see [BENCHMARKS.md](BENCHMARKS.md). It opens a game window while it
+runs. OptiFine cannot be redistributed: point `-Poptifine` at a local copy. CI runs
 the harness on Linux under a virtual display with software OpenGL.
 
 ## For AI agents
@@ -92,4 +135,5 @@ every doc and core source file. The tests under `helios/src/test` are the execut
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE). The bundled Inter font is under the SIL Open Font License 1.1, and `fontgen` ports parts of msdfgen
+(MIT); see [NOTICE.md](NOTICE.md).
