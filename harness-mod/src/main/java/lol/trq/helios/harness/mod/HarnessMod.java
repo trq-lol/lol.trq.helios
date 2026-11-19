@@ -81,7 +81,8 @@ public class HarnessMod {
                 }
                 System.out.println("HELIOS-HARNESS main framebuffer stencil=" + Checks.stencilOnScreen);
                 System.out.println("HELIOS-HARNESS start helios=" + Helios.version() + " java="
-                        + System.getProperty("java.version") + " optifine=" + optifine() + " gl=" + Checks.glInfo());
+                        + System.getProperty("java.version") + " optifine=" + optifine() + " gl=" + Checks.glInfo()
+                        + " lazarus.gl=" + System.getProperty("lazarus.gl"));
             }
             Frame frame = Frame.of(gui);
             if (checkRequested && exitCode == null) {

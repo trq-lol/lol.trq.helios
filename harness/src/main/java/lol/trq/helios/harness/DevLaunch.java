@@ -139,7 +139,8 @@ public final class DevLaunch {
                 "--userType", "legacy",
                 "--tweakClass", "net.minecraftforge.fml.common.launcher.FMLTweaker"));
 
-        System.out.println("[harness] " + mode + " on " + javaExe);
+        System.out.println("[harness] " + mode + " on " + javaExe + " with "
+                + String.join(" ", command.subList(1, command.indexOf("-cp") < 0 ? 1 : command.indexOf("-cp"))));
         Process process = new ProcessBuilder(command)
                 .directory(gameDir.toFile())
                 .redirectErrorStream(true)
