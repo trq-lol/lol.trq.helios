@@ -21,7 +21,7 @@ if (localLazarus != null && localLazarus.toString().isBlank()) {
     throw new GradleException('-PlazarusJar is empty')
 }
 def lazarusJar = localLazarus
-        ? rootProject.layout.projectDirectory.file(new File(localLazarus.toString()).absolutePath)
+        ? rootProject.layout.projectDirectory.file(rootProject.file(localLazarus.toString()).absolutePath)
         : cacheDir.file("lazarus/lol.trq.lazarus-${lazarusVersion}.jar")
 def lwjgl3Jar = localLazarus
         ? layout.buildDirectory.file('lazarus-local/lwjgl3.jar').get()
