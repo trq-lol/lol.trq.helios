@@ -5,6 +5,14 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-19
+
+### Fixed
+
+- Blur and bloom ignore a scissor test, stencil test or colour mask that the caller left on while they draw into
+  Helios's own framebuffers. Any of these corrupted the intermediate images; with the colour mask off, a full-screen
+  blur covered the screen with an empty image. The final composite still honours the caller's clip and stencil.
+
 ## [0.1.3] - 2026-11-19
 
 ### Fixed
@@ -86,7 +94,8 @@ First release. Requires Minecraft Forge 1.8.9 on LWJGL 3 through lol.trq.lazarus
   restoration, and any `[lazarus] GL error` fails the run. `-Pworld` checks projection, player anchors and mesh
   drawing in a singleplayer world. Runs in CI under Xvfb with Mesa.
 
-[Unreleased]: https://github.com/trq-lol/lol.trq.helios/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/trq-lol/lol.trq.helios/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.4
 [0.1.3]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.3
 [0.1.2]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.2
 [0.1.1]: https://github.com/trq-lol/lol.trq.helios/releases/tag/v0.1.1
