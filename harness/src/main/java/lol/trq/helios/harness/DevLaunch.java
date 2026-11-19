@@ -6,13 +6,16 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -22,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -138,16 +142,41 @@ public final class DevLaunch {
         System.out.println("[harness] " + mode + " on " + javaExe);
         Process process = new ProcessBuilder(command)
                 .directory(gameDir.toFile())
-                .inheritIO()
+                .redirectErrorStream(true)
                 .start();
+        // Echo the game's output and count the driver errors Lazarus reports with -Dlazarus.gl.debug=true: any is a
+        // failure, whatever the checks said.
+        AtomicInteger glErrors = new AtomicInteger();
+        Thread pump = new Thread(() -> {
+            try (BufferedReader reader =
+                    new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println(line);
+                    if (line.contains("[lazarus] GL error")) {
+                        glErrors.incrementAndGet();
+                    }
+                }
+            } catch (IOException e) {
+                System.out.println("[harness] output pump failed: " + e);
+            }
+        });
+        pump.setDaemon(true);
+        pump.start();
         if (!process.waitFor(timeout, TimeUnit.SECONDS)) {
             process.descendants().forEach(ProcessHandle::destroyForcibly);
             process.destroyForcibly();
             System.out.println("[harness] TIMEOUT after " + timeout + "s");
             System.exit(124);
         }
-        System.out.println("[harness] exit " + process.exitValue());
-        System.exit(process.exitValue());
+        pump.join(10_000);
+        int exit = process.exitValue();
+        if (glErrors.get() > 0) {
+            System.out.println("[harness] FAIL " + glErrors.get() + " GL error(s) reported by Lazarus");
+            exit = exit == 0 ? 1 : exit;
+        }
+        System.out.println("[harness] exit " + exit);
+        System.exit(exit);
     }
 
     Path vanilla(List<Path> classpath) throws IOException, InterruptedException {
@@ -369,10 +398,15 @@ public final class DevLaunch {
     }
 
     private static void writeMutedOptions(Path gameDir) throws IOException {
-        // Rewritten every launch: muted, framebuffers on, and no view bobbing so the camera looks exactly where
+        // Rewritten every launch: muted, framebuffers on, no splash screen, and no view bobbing so the camera looks
+        // exactly where
         // the player faces (the world projection check depends on it).
         Path options = gameDir.resolve("options.txt");
         Files.writeString(options, "soundCategory_master:0.0\nmusicVolume:0.0\nfboEnable:true\nbobView:false\n");
+        // Forge's splash screen draws from a second thread on a shared context; the checks do not need it.
+        Path splash = gameDir.resolve("config/splash.properties");
+        Files.createDirectories(splash.getParent());
+        Files.writeString(splash, "enabled=false\n");
     }
 
     private static JsonObject json(Path file) throws IOException {

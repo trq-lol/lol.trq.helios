@@ -14,27 +14,42 @@ def javaFor = { int version ->
 
 def cacheDir = rootProject.layout.projectDirectory.dir('.harness-cache')
 def lazarusVersion = rootProject.property('lazarusVersion')
-def lazarusJar = cacheDir.file("lazarus/lol.trq.lazarus-${lazarusVersion}.jar")
-def lwjgl3Jar = cacheDir.file("lazarus/lol.trq.lazarus-lwjgl3-${lazarusVersion}.jar")
+// -PlazarusJar=<path> runs against a locally built Lazarus jar instead of the release, for example one built from a
+// branch that the release does not include yet.
+def localLazarus = project.findProperty('lazarusJar')
+def lazarusJar = localLazarus
+        ? rootProject.layout.projectDirectory.file(new File(localLazarus.toString()).absolutePath)
+        : cacheDir.file("lazarus/lol.trq.lazarus-${lazarusVersion}.jar")
+def lwjgl3Jar = localLazarus
+        ? layout.buildDirectory.file('lazarus-local/lwjgl3.jar').get()
+        : cacheDir.file("lazarus/lol.trq.lazarus-lwjgl3-${lazarusVersion}.jar")
 def modJar = project(':harness-mod').tasks.named('jar')
 
 def fetchLazarus = tasks.register('fetchLazarus') {
     group = 'helios'
     description = "Downloads the lol.trq.lazarus ${lazarusVersion} release jar, checks its SHA-256 and extracts the LWJGL 3 jar."
-    outputs.files(lazarusJar, lwjgl3Jar)
+    outputs.files(lwjgl3Jar)
+    outputs.upToDateWhen { false }
     doLast {
         def base = "https://github.com/trq-lol/lol.trq.lazarus/releases/download/v${lazarusVersion}/lol.trq.lazarus-${lazarusVersion}.jar"
         def jar = lazarusJar.asFile
-        jar.parentFile.mkdirs()
-        if (!jar.isFile()) {
-            new URL(base).withInputStream { input -> jar.withOutputStream { it << input } }
+        if (localLazarus) {
+            if (!jar.isFile()) {
+                throw new GradleException("-PlazarusJar: ${jar} does not exist")
+            }
+        } else {
+            jar.parentFile.mkdirs()
+            if (!jar.isFile()) {
+                new URL(base).withInputStream { input -> jar.withOutputStream { it << input } }
+            }
+            def expected = new URL(base + '.sha256').text.trim().split(/\s+/)[0].toLowerCase()
+            def actual = MessageDigest.getInstance('SHA-256').digest(jar.bytes).encodeHex().toString()
+            if (actual != expected) {
+                jar.delete()
+                throw new GradleException("lol.trq.lazarus ${lazarusVersion}: SHA-256 mismatch (expected ${expected}, got ${actual})")
+            }
         }
-        def expected = new URL(base + '.sha256').text.trim().split(/\s+/)[0].toLowerCase()
-        def actual = MessageDigest.getInstance('SHA-256').digest(jar.bytes).encodeHex().toString()
-        if (actual != expected) {
-            jar.delete()
-            throw new GradleException("lol.trq.lazarus ${lazarusVersion}: SHA-256 mismatch (expected ${expected}, got ${actual})")
-        }
+        lwjgl3Jar.asFile.parentFile.mkdirs()
         def zip = new java.util.zip.ZipFile(jar)
         try {
             def entry = zip.getEntry('META-INF/lazarus/lwjgl3.jar')

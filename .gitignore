@@ -14,3 +14,4 @@ OptiFine*.jar
 
 # planning documents live in a separate repository
 docs/superpowers/
+.lazarus/
