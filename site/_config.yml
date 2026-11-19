@@ -13,6 +13,7 @@ nav:
   - { title: Changelog, url: /CHANGELOG.html }
   - { title: API, url: /api/ }
   - { title: Lazarus, url: "https://lazarus.trq.lol" }
+  - { title: llms.txt, url: /llms.txt }
   - { title: GitHub, url: "https://github.com/trq-lol/lol.trq.helios" }
 
 defaults:
