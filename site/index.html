@@ -5,7 +5,7 @@ title: Helios
 {% assign intro = readme | split: "## Requirements" | first | split: "
 
 " %}
-{% assign requirements = readme | split: "## Requirements" | last | split: "## What is here" | first | replace: "](docs/", "](/docs/" | replace: ".md)", ".html)" %}
+{% assign requirements = readme | split: "## Requirements" | last | split: "## Install" | first | replace: "](docs/", "](/docs/" | replace: ".md)", ".html)" %}
 {% assign usage = readme | split: "## Usage" | last | split: "```java" | slice: 1, 1 | first | split: "```" | first %}
 {% assign paras = "" | split: "" %}{% for p in intro %}{% assign c = p | strip | slice: 0, 1 %}{% if c != "#" and c != "[" and c != "" %}{% assign paras = paras | push: p %}{% endif %}{% endfor %}
 <p class="lede">{{ paras[0] | markdownify | strip_html | strip }}</p>
@@ -22,7 +22,7 @@ title: Helios
 
 <h2>Usage</h2>
 {% highlight java %}{{ usage | strip }}{% endhighlight %}
-<p>More examples (text, animation, world to screen, meshes, stencil clipping, shader reload) are in the <a href="{{ site.repo }}#usage">README</a>.</p>
+<p>More examples (text, animation, world to screen, meshes, clipping) and the limitations are in the <a href="{{ site.repo }}#usage">README</a>.</p>
 
 <h2>Links</h2>
 <ul>
