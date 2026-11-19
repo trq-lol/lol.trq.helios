@@ -12,7 +12,9 @@ Helios (one per GL context)
   StateGuard           first touch of a slot saves it from GL; close() restores newest first, cached slots via the cache
   ShaderLoader         ShaderPreprocessor (#include, defines, #line) -> compile/link -> ShaderProgram (uniform cache)
   FramebufferPool      sized from SurfaceSize = framebuffer pixels; a resize retires everything
-  RoundedRectRenderer  SDF + coverage ramp across one pixel; quad grown by one pixel
+  ShapeBatch           72-byte vertices in a streamed VBO, one quad per shape, GL_QUADS; kind + params per vertex;
+                       flushes when full, on a texture change, at end(); each flush is one guarded draw
+  Passes / Effects     screen capture, dual Kawase blur, composite; blurBehind, bloom; PostChain; ScissorStack
 minecraft/             the only Minecraft-aware package: reflection with SRG names, MCP fallback
 ```
 
@@ -23,8 +25,12 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
 - **Baseline first.** Shaders are `#version 120`; use `gl_Vertex`, `gl_MultiTexCoord0`, `varying`, `gl_FragColor`.
   Anything newer sits behind a `GLCapabilities` check with a baseline fallback, as another `GlBackend`.
 - **Sizes in framebuffer pixels.** `Minecraft.displayWidth` is framebuffer pixels on LWJGL 3; window points are not.
-- **The Java SDF mirrors the GLSL.** `sdf/Sdf.java` and `shaders/lib/sdf.glsl` must behave identically; the harness
-  compares rendered pixels with the Java model.
+- **The Java SDF mirrors the GLSL.** `sdf/Sdf.java` and `shaders/lib/sdf.glsl` must behave identically. The harness
+  model (`harness-mod/.../Model.java`) mirrors `shape.fsh` and is compared with every rendered pixel.
+- **Coverage uses the pixel size of the local coordinates** (`length(dFdx(p))`), never derivatives of the distance:
+  those are wrong at tight curves and corners and cost 10+/255 at round caps.
+- **The vertex layout lives in three places**: `ShapeBatch` (writer and attribute list), `shape.vsh`, and
+  `ShapeBatchTest` (decoder). Change them together. Attribute 0 must be the position: GL 2.1 draws nothing without it.
 - **Prove it in the game.** A rendering change runs `./gradlew :harness:runHarness25` (and with `-Poptifine=<jar>`);
   every `HELIOS-HARNESS check` line must pass. Look at the screenshots.
 
@@ -33,6 +39,9 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
 - Minecraft names at run time are SRG (`func_179147_l`, `field_71443_c`). Look them up in the MCP 1.8.9 SRG and
   `stable_22` mappings, and keep the MCP name as the fallback.
 - OptiFine leaves different alpha blend factors behind in GUI code; never assume a default, save and restore.
+- Effects that capture the screen assume drawing units are screen space from the top left (a GUI screen).
+- Vertex attribute pointers are not restored (code using generic attribute arrays sets its pointers before drawing);
+  their enable flags are.
 - The harness opens a game window. Do not launch it from an agent without the owner's go-ahead.
 - No Mixin in core, and no Minecraft class referenced outside `lol.trq.helios.minecraft`.
 
