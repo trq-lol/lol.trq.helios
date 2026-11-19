@@ -1,6 +1,7 @@
 title: Helios
 description: A rendering library for Minecraft Forge 1.8.9 on LWJGL 3 and OpenGL 4.1 core, with SDF shapes, MSDF text, blur and bloom.
 url: https://helios.trq.lol
+baseurl: ""
 wordmark: helios
 tagline: A rendering library for Minecraft Forge 1.8.9 on LWJGL 3, OpenGL 4.1 core only.
 license: MIT
@@ -25,7 +26,6 @@ exclude:
   - README.md
   - build
   - fontgen
-  - fonts
   - gradle
   - harness
   - harness-mod
