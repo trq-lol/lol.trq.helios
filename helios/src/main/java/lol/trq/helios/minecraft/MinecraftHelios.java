@@ -24,8 +24,17 @@ public final class MinecraftHelios {
         ClassLoader loader = MinecraftHelios.class.getClassLoader();
         Gl21Backend gl = new Gl21Backend();
         MinecraftGlStateCache cache = new MinecraftGlStateCache(loader);
+        String dir = System.getProperty(SHADER_DIR_PROPERTY, "");
+        if (!dir.isEmpty()) {
+            return Helios.createWithHotReload(gl, cache, surface(loader), java.nio.file.Path.of(dir));
+        }
         return Helios.create(gl, cache, surface(loader));
     }
+
+    /**
+     * System property naming a shader source directory; when set, {@link #create()} turns on hot reload from it.
+     */
+    public static final String SHADER_DIR_PROPERTY = "helios.shaderDir";
 
     /**
      * Gives the main Minecraft framebuffer a stencil buffer, through Forge's {@code Framebuffer.enableStencil()}.

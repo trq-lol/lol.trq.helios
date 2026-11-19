@@ -8,6 +8,7 @@ import lol.trq.helios.effect.PostChain;
 import lol.trq.helios.fbo.FramebufferPool;
 import lol.trq.helios.fbo.SurfaceSize;
 import lol.trq.helios.gl.GlBackend;
+import lol.trq.helios.shader.ShaderHotReload;
 import lol.trq.helios.shader.ShaderLoader;
 import lol.trq.helios.shader.SourceResolver;
 import lol.trq.helios.state.GlStateCache;
@@ -42,6 +43,7 @@ public final class Helios implements AutoCloseable {
 
     private final TextRenderer text;
     private final StencilMask stencil;
+    private ShaderHotReload hotReload;
     private MsdfFont defaultFont;
 
     /** Class path location of the bundled font, Inter Regular (SIL Open Font License 1.1). */
@@ -86,6 +88,33 @@ public final class Helios implements AutoCloseable {
      */
     public static Helios create(GlBackend gl, GlStateCache cache, SurfaceSize surface, SourceResolver resolver) {
         return new Helios(gl, cache, surface, resolver);
+    }
+
+    /**
+     * Creates an instance that loads shaders from a source directory first and reloads them when they change. Call
+     * {@link #tick()} once per frame. For development only.
+     *
+     * @param gl the backend
+     * @param cache the host's state cache
+     * @param surface the window framebuffer size
+     * @param shaderDir a copy of the shader sources, laid out like {@link #SHADER_ROOT}
+     * @return the instance
+     */
+    public static Helios createWithHotReload(
+            GlBackend gl, GlStateCache cache, SurfaceSize surface, java.nio.file.Path shaderDir) {
+        Helios h =
+                create(gl, cache, surface, SourceResolver.directory(shaderDir).or(builtinShaders()));
+        h.hotReload = new ShaderHotReload(h.shaders, shaderDir, 250);
+        return h;
+    }
+
+    /**
+     * Per-frame housekeeping: polls shader hot reload when it is on. Cheap; call it once per frame.
+     *
+     * @return what hot reload did, or a result with nothing reloaded
+     */
+    public ShaderHotReload.Result tick() {
+        return hotReload == null ? new ShaderHotReload.Result(false, java.util.List.of()) : hotReload.poll();
     }
 
     /**
