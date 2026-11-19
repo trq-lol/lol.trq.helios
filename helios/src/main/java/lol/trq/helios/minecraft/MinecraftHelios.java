@@ -37,32 +37,50 @@ public final class MinecraftHelios {
     public static final String SHADER_DIR_PROPERTY = "helios.shaderDir";
 
     /**
-     * Gives the main Minecraft framebuffer a stencil buffer, through Forge's {@code Framebuffer.enableStencil()}.
-     * Call it once, on the render thread, before using {@link Helios#stencil()} on screen. The framebuffer is
-     * recreated, so what was drawn so far this frame is lost.
+     * Gives the main Minecraft framebuffer a stencil buffer, through Forge's {@code Framebuffer.enableStencil()},
+     * on the render thread. The first call recreates the framebuffer, so what was drawn so far that frame is lost,
+     * and binds it again. Once the stencil buffer exists, a call returns true and changes nothing, so it is safe to
+     * call before every use of {@link Helios#stencil()}.
      *
-     * @return whether the framebuffer now has a stencil buffer
+     * @return whether the framebuffer has a stencil buffer
      */
     public static boolean enableStencil() {
         try {
             Class<?> mc =
                     Class.forName("net.minecraft.client.Minecraft", false, MinecraftHelios.class.getClassLoader());
             Object instance = method(mc, "func_71410_x", "getMinecraft").invoke(null);
-            Object framebuffer = method(mc, "func_147110_a", "getFramebuffer").invoke(instance);
-            boolean enabled =
-                    (Boolean) framebuffer.getClass().getMethod("enableStencil").invoke(framebuffer);
-            // enableStencil recreates the framebuffer and leaves nothing bound; bind it again so a call in the middle
-            // of a frame keeps drawing into it.
-            Method bind;
-            try {
-                bind = framebuffer.getClass().getMethod("func_147610_a", boolean.class);
-            } catch (NoSuchMethodException e) {
-                bind = framebuffer.getClass().getMethod("bindFramebuffer", boolean.class);
-            }
-            bind.invoke(framebuffer, true);
-            return enabled;
+            return enableStencil(method(mc, "func_147110_a", "getFramebuffer").invoke(instance));
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("cannot enable the stencil buffer", e);
+        }
+    }
+
+    /**
+     * Enables the stencil buffer of a Forge {@code Framebuffer}, leaving the GL bindings alone when it already has
+     * one.
+     */
+    static boolean enableStencil(Object framebuffer) throws ReflectiveOperationException {
+        Class<?> type = framebuffer.getClass();
+        Method isEnabled = optionalMethod(type, "isStencilEnabled");
+        if (isEnabled != null && (Boolean) isEnabled.invoke(framebuffer)) {
+            return true;
+        }
+        boolean enabled = (Boolean) type.getMethod("enableStencil").invoke(framebuffer);
+        // enableStencil recreates the framebuffer and leaves nothing bound; bind it again so a call in the middle of
+        // a frame keeps drawing into it.
+        Method bind = optionalMethod(type, "func_147610_a", boolean.class);
+        if (bind == null) {
+            bind = type.getMethod("bindFramebuffer", boolean.class);
+        }
+        bind.invoke(framebuffer, true);
+        return enabled;
+    }
+
+    private static Method optionalMethod(Class<?> owner, String name, Class<?>... params) {
+        try {
+            return owner.getMethod(name, params);
+        } catch (NoSuchMethodException e) {
+            return null;
         }
     }
 
