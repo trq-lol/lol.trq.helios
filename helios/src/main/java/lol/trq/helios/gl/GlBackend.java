@@ -409,4 +409,117 @@ public interface GlBackend {
      * @param height height in pixels
      */
     void scissor(int x, int y, int width, int height);
+
+    /**
+     * Creates a 2D texture from tightly packed RGB bytes, rows top to bottom, with linear filtering and clamped edges.
+     * The texture binding of the active unit is left as it was.
+     *
+     * @param width width in texels
+     * @param height height in texels
+     * @param rgb {@code width * height * 3} bytes from position to limit
+     * @return the texture
+     */
+    int createRgbTexture(int width, int height, java.nio.ByteBuffer rgb);
+
+    /**
+     * {@code glDeleteTextures}.
+     *
+     * @param texture the texture
+     */
+    void deleteTexture(int texture);
+
+    /** {@code GL_STENCIL_TEST}. */
+    int STENCIL_TEST = 0x0B90;
+    /** {@code GL_STENCIL_BITS}. */
+    int STENCIL_BITS = 0x0D57;
+    /** {@code GL_STENCIL_FUNC}. */
+    int STENCIL_FUNC = 0x0B92;
+    /** {@code GL_STENCIL_VALUE_MASK}. */
+    int STENCIL_VALUE_MASK = 0x0B93;
+    /** {@code GL_STENCIL_FAIL}. */
+    int STENCIL_FAIL = 0x0B94;
+    /** {@code GL_STENCIL_PASS_DEPTH_FAIL}. */
+    int STENCIL_PASS_DEPTH_FAIL = 0x0B95;
+    /** {@code GL_STENCIL_PASS_DEPTH_PASS}. */
+    int STENCIL_PASS_DEPTH_PASS = 0x0B96;
+    /** {@code GL_STENCIL_REF}. */
+    int STENCIL_REF = 0x0B97;
+    /** {@code GL_STENCIL_WRITEMASK}. */
+    int STENCIL_WRITEMASK = 0x0B98;
+    /** {@code GL_COLOR_WRITEMASK}. */
+    int COLOR_WRITEMASK = 0x0C23;
+    /** {@code GL_ALPHA_TEST_FUNC}. */
+    int ALPHA_TEST_FUNC = 0x0BC1;
+    /** {@code GL_ALPHA_TEST_REF}. */
+    int ALPHA_TEST_REF = 0x0BC2;
+    /** {@code GL_ALWAYS}. */
+    int ALWAYS = 0x0207;
+    /** {@code GL_EQUAL}. */
+    int EQUAL = 0x0202;
+    /** {@code GL_NOTEQUAL}. */
+    int NOTEQUAL = 0x0205;
+    /** {@code GL_GREATER}. */
+    int GREATER = 0x0204;
+    /** {@code GL_KEEP}. */
+    int KEEP = 0x1E00;
+    /** {@code GL_REPLACE}. */
+    int REPLACE = 0x1E01;
+
+    /**
+     * Returns how many stencil bits the bound framebuffer has: from its stencil attachment for a framebuffer object,
+     * from {@code GL_STENCIL_BITS} for the window.
+     *
+     * @return the stencil bits, 0 when there is no stencil buffer
+     */
+    int stencilBits();
+
+    /**
+     * {@code glStencilFunc}.
+     *
+     * @param func the comparison
+     * @param ref the reference value
+     * @param mask the value mask
+     */
+    void stencilFunc(int func, int ref, int mask);
+
+    /**
+     * {@code glStencilOp}.
+     *
+     * @param sfail action when the stencil test fails
+     * @param dpfail action when the depth test fails
+     * @param dppass action when both pass
+     */
+    void stencilOp(int sfail, int dpfail, int dppass);
+
+    /**
+     * {@code glStencilMask}.
+     *
+     * @param mask the write mask
+     */
+    void stencilMask(int mask);
+
+    /**
+     * Clears the bound framebuffer's stencil buffer to a value, leaving the stencil clear value as it was.
+     *
+     * @param value the value
+     */
+    void clearStencil(int value);
+
+    /**
+     * {@code glColorMask}, directly.
+     *
+     * @param r red writes
+     * @param g green writes
+     * @param b blue writes
+     * @param a alpha writes
+     */
+    void colorMask(boolean r, boolean g, boolean b, boolean a);
+
+    /**
+     * {@code glAlphaFunc}, directly.
+     *
+     * @param func the comparison
+     * @param ref the reference
+     */
+    void alphaFunc(int func, float ref);
 }

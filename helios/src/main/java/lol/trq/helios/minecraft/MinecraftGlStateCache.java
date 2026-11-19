@@ -31,6 +31,8 @@ public final class MinecraftGlStateCache implements GlStateCache {
     private final MethodHandle color;
     private final MethodHandle setActiveTexture;
     private final MethodHandle bindTexture;
+    private final MethodHandle colorMask;
+    private final MethodHandle alphaFunc;
 
     /**
      * Resolves {@code GlStateManager}.
@@ -70,6 +72,12 @@ public final class MinecraftGlStateCache implements GlStateCache {
         MethodType i = MethodType.methodType(void.class, int.class);
         setActiveTexture = find(gsm, "func_179138_g", "setActiveTexture", i);
         bindTexture = find(gsm, "func_179144_i", "bindTexture", i);
+        colorMask = find(
+                gsm,
+                "func_179135_a",
+                "colorMask",
+                MethodType.methodType(void.class, boolean.class, boolean.class, boolean.class, boolean.class));
+        alphaFunc = find(gsm, "func_179092_a", "alphaFunc", MethodType.methodType(void.class, int.class, float.class));
     }
 
     private static MethodHandle find(Class<?> owner, String srg, String mcp, MethodType type) {
@@ -150,6 +158,24 @@ public final class MinecraftGlStateCache implements GlStateCache {
     public void bindTexture(int texture) {
         try {
             bindTexture.invokeExact(texture);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    @Override
+    public void colorMask(boolean r, boolean g, boolean b, boolean a) {
+        try {
+            colorMask.invokeExact(r, g, b, a);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    @Override
+    public void alphaFunc(int func, float ref) {
+        try {
+            alphaFunc.invokeExact(func, ref);
         } catch (Throwable t) {
             throw rethrow(t);
         }

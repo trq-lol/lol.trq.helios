@@ -3,7 +3,6 @@ package lol.trq.helios.state;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import lol.trq.helios.gl.GlBackend;
 
@@ -61,7 +60,13 @@ public final class StateGuard implements AutoCloseable {
         /** The 2D texture bound on each touched unit. */
         TEXTURES,
         /** {@code GL_SCISSOR_TEST} and the scissor box. */
-        SCISSOR
+        SCISSOR,
+        /** {@code GL_STENCIL_TEST}, the stencil function, operations and write mask. */
+        STENCIL,
+        /** The colour write mask. */
+        COLOR_MASK,
+        /** The alpha test comparison and reference. */
+        ALPHA_FUNC
     }
 
     private static final int MAX_ATTRIBS = 16;
@@ -69,12 +74,20 @@ public final class StateGuard implements AutoCloseable {
 
     private final GlBackend gl;
     private final GlStateCache cache;
-    private final List<Slot> order = new ArrayList<>(Slot.values().length);
-    private final EnumSet<Slot> saved = EnumSet.noneOf(Slot.class);
-    private final boolean[] flags = new boolean[Slot.values().length];
-    private final int[] blendFunc = new int[4];
-    private final float[] color = new float[4];
-    private final int[] viewport = new int[4];
+    private static final Slot[] SLOTS = Slot.values();
+
+    // Saved state lives in plain fields and bit masks; arrays are allocated only for the rarely used slots, so a
+    // guard costs one small allocation.
+    private final byte[] order = new byte[SLOTS.length];
+    private int orderSize;
+    private int savedMask;
+    private int flagBits;
+    private int blendSrcRgb;
+    private int blendDstRgb;
+    private int blendSrcAlpha;
+    private int blendDstAlpha;
+    private float[] color;
+    private int[] viewport;
     private int program;
     private int framebuffer;
     private int arrayBuffer;
@@ -82,9 +95,14 @@ public final class StateGuard implements AutoCloseable {
     private int attribsEnabled;
     private int activeTexture;
     private int unitsTouched;
-    private final int[] textures = new int[MAX_UNITS];
+    private int[] textures;
     private boolean scissorEnabled;
-    private final int[] scissorBox = new int[4];
+    private int[] scissorBox;
+    private int[] stencil;
+    private boolean stencilEnabled;
+    private int colorMaskBits;
+    private int alphaFunc;
+    private float alphaRef;
     private boolean closed;
 
     private StateGuard(GlBackend gl, GlStateCache cache) {
@@ -126,10 +144,10 @@ public final class StateGuard implements AutoCloseable {
      */
     public StateGuard blendFunc(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha) {
         if (save(Slot.BLEND_FUNC)) {
-            blendFunc[0] = gl.getInteger(GlBackend.BLEND_SRC_RGB);
-            blendFunc[1] = gl.getInteger(GlBackend.BLEND_DST_RGB);
-            blendFunc[2] = gl.getInteger(GlBackend.BLEND_SRC_ALPHA);
-            blendFunc[3] = gl.getInteger(GlBackend.BLEND_DST_ALPHA);
+            blendSrcRgb = gl.getInteger(GlBackend.BLEND_SRC_RGB);
+            blendDstRgb = gl.getInteger(GlBackend.BLEND_DST_RGB);
+            blendSrcAlpha = gl.getInteger(GlBackend.BLEND_SRC_ALPHA);
+            blendDstAlpha = gl.getInteger(GlBackend.BLEND_DST_ALPHA);
         }
         cache.blendFunc(srcRgb, dstRgb, srcAlpha, dstAlpha);
         return this;
@@ -155,7 +173,7 @@ public final class StateGuard implements AutoCloseable {
      */
     public StateGuard depthMask(boolean write) {
         if (save(Slot.DEPTH_MASK)) {
-            flags[Slot.DEPTH_MASK.ordinal()] = gl.getInteger(GlBackend.DEPTH_WRITEMASK) != 0;
+            setFlag(Slot.DEPTH_MASK, gl.getInteger(GlBackend.DEPTH_WRITEMASK) != 0);
         }
         cache.depthMask(write);
         return this;
@@ -208,6 +226,7 @@ public final class StateGuard implements AutoCloseable {
      */
     public StateGuard color(float r, float g, float b, float a) {
         if (save(Slot.COLOR)) {
+            color = new float[4];
             gl.getFloats(GlBackend.CURRENT_COLOR, color);
         }
         cache.color(r, g, b, a);
@@ -253,6 +272,7 @@ public final class StateGuard implements AutoCloseable {
      */
     public StateGuard viewport(int x, int y, int width, int height) {
         if (save(Slot.VIEWPORT)) {
+            viewport = new int[4];
             gl.getIntegers(GlBackend.VIEWPORT, viewport);
         }
         gl.viewport(x, y, width, height);
@@ -311,7 +331,9 @@ public final class StateGuard implements AutoCloseable {
             activeTexture = gl.getInteger(GlBackend.ACTIVE_TEXTURE);
         }
         cache.activeTexture(GlBackend.TEXTURE0 + unit);
-        save(Slot.TEXTURES);
+        if (save(Slot.TEXTURES)) {
+            textures = new int[MAX_UNITS];
+        }
         int bit = 1 << unit;
         if ((unitsTouched & bit) == 0) {
             unitsTouched |= bit;
@@ -334,10 +356,85 @@ public final class StateGuard implements AutoCloseable {
     public StateGuard scissor(boolean on, int x, int y, int width, int height) {
         if (save(Slot.SCISSOR)) {
             scissorEnabled = gl.isEnabled(GlBackend.SCISSOR_TEST);
+            scissorBox = new int[4];
             gl.getIntegers(GlBackend.SCISSOR_BOX, scissorBox);
         }
         gl.scissor(x, y, width, height);
         gl.setEnabled(GlBackend.SCISSOR_TEST, on);
+        return this;
+    }
+
+    /**
+     * Sets the stencil test, function and operations.
+     *
+     * @param on whether the stencil test is on
+     * @param func the comparison
+     * @param ref the reference value
+     * @param valueMask the comparison mask
+     * @param sfail action when the stencil test fails
+     * @param dpfail action when the depth test fails
+     * @param dppass action when both pass
+     * @param writeMask which stencil bits are written
+     * @return this guard
+     */
+    public StateGuard stencil(
+            boolean on, int func, int ref, int valueMask, int sfail, int dpfail, int dppass, int writeMask) {
+        if (save(Slot.STENCIL)) {
+            stencilEnabled = gl.isEnabled(GlBackend.STENCIL_TEST);
+            stencil = new int[7];
+            stencil[0] = gl.getInteger(GlBackend.STENCIL_FUNC);
+            stencil[1] = gl.getInteger(GlBackend.STENCIL_REF);
+            stencil[2] = gl.getInteger(GlBackend.STENCIL_VALUE_MASK);
+            stencil[3] = gl.getInteger(GlBackend.STENCIL_FAIL);
+            stencil[4] = gl.getInteger(GlBackend.STENCIL_PASS_DEPTH_FAIL);
+            stencil[5] = gl.getInteger(GlBackend.STENCIL_PASS_DEPTH_PASS);
+            stencil[6] = gl.getInteger(GlBackend.STENCIL_WRITEMASK);
+        }
+        gl.setEnabled(GlBackend.STENCIL_TEST, on);
+        gl.stencilFunc(func, ref, valueMask);
+        gl.stencilOp(sfail, dpfail, dppass);
+        gl.stencilMask(writeMask);
+        return this;
+    }
+
+    /**
+     * Sets which colour channels are written.
+     *
+     * @param r red
+     * @param g green
+     * @param b blue
+     * @param a alpha
+     * @return this guard
+     */
+    public StateGuard colorMask(boolean r, boolean g, boolean b, boolean a) {
+        if (save(Slot.COLOR_MASK)) {
+            int[] m = new int[4];
+            gl.getIntegers(GlBackend.COLOR_WRITEMASK, m);
+            for (int i = 0; i < 4; i++) {
+                if (m[i] != 0) {
+                    colorMaskBits |= 1 << i;
+                }
+            }
+        }
+        cache.colorMask(r, g, b, a);
+        return this;
+    }
+
+    /**
+     * Sets the alpha test comparison.
+     *
+     * @param func the comparison
+     * @param ref the reference alpha
+     * @return this guard
+     */
+    public StateGuard alphaFunc(int func, float ref) {
+        if (save(Slot.ALPHA_FUNC)) {
+            alphaFunc = gl.getInteger(GlBackend.ALPHA_TEST_FUNC);
+            float[] r = new float[4];
+            gl.getFloats(GlBackend.ALPHA_TEST_REF, r);
+            alphaRef = r[0];
+        }
+        cache.alphaFunc(func, ref);
         return this;
     }
 
@@ -347,7 +444,11 @@ public final class StateGuard implements AutoCloseable {
      * @return an unmodifiable view
      */
     public List<Slot> touched() {
-        return Collections.unmodifiableList(order);
+        List<Slot> slots = new ArrayList<>(orderSize);
+        for (int i = 0; i < orderSize; i++) {
+            slots.add(SLOTS[order[i]]);
+        }
+        return Collections.unmodifiableList(slots);
     }
 
     /** Restores every touched slot, newest first. Calling it again does nothing. */
@@ -357,12 +458,12 @@ public final class StateGuard implements AutoCloseable {
             return;
         }
         closed = true;
-        for (int i = order.size() - 1; i >= 0; i--) {
-            Slot slot = order.get(i);
-            boolean flag = flags[slot.ordinal()];
+        for (int i = orderSize - 1; i >= 0; i--) {
+            Slot slot = SLOTS[order[i]];
+            boolean flag = (flagBits & (1 << slot.ordinal())) != 0;
             switch (slot) {
                 case BLEND -> cache.blend(flag);
-                case BLEND_FUNC -> cache.blendFunc(blendFunc[0], blendFunc[1], blendFunc[2], blendFunc[3]);
+                case BLEND_FUNC -> cache.blendFunc(blendSrcRgb, blendDstRgb, blendSrcAlpha, blendDstAlpha);
                 case DEPTH_TEST -> cache.depthTest(flag);
                 case DEPTH_MASK -> cache.depthMask(flag);
                 case CULL -> cache.cull(flag);
@@ -389,6 +490,19 @@ public final class StateGuard implements AutoCloseable {
                         }
                     }
                 }
+                case STENCIL -> {
+                    gl.stencilFunc(stencil[0], stencil[1], stencil[2]);
+                    gl.stencilOp(stencil[3], stencil[4], stencil[5]);
+                    gl.stencilMask(stencil[6]);
+                    gl.setEnabled(GlBackend.STENCIL_TEST, stencilEnabled);
+                }
+                case COLOR_MASK ->
+                    cache.colorMask(
+                            (colorMaskBits & 1) != 0,
+                            (colorMaskBits & 2) != 0,
+                            (colorMaskBits & 4) != 0,
+                            (colorMaskBits & 8) != 0);
+                case ALPHA_FUNC -> cache.alphaFunc(alphaFunc, alphaRef);
                 case SCISSOR -> {
                     gl.scissor(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3]);
                     gl.setEnabled(GlBackend.SCISSOR_TEST, scissorEnabled);
@@ -399,7 +513,7 @@ public final class StateGuard implements AutoCloseable {
 
     private void saveFlag(Slot slot, int cap) {
         if (save(slot)) {
-            flags[slot.ordinal()] = gl.isEnabled(cap);
+            setFlag(slot, gl.isEnabled(cap));
         }
     }
 
@@ -407,10 +521,17 @@ public final class StateGuard implements AutoCloseable {
         if (closed) {
             throw new IllegalStateException("guard already closed");
         }
-        if (saved.add(slot)) {
-            order.add(slot);
+        int bit = 1 << slot.ordinal();
+        if ((savedMask & bit) == 0) {
+            savedMask |= bit;
+            order[orderSize++] = (byte) slot.ordinal();
             return true;
         }
         return false;
+    }
+
+    private void setFlag(Slot slot, boolean on) {
+        int bit = 1 << slot.ordinal();
+        flagBits = on ? flagBits | bit : flagBits & ~bit;
     }
 }

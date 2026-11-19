@@ -65,4 +65,14 @@ public final class DirectGlStateCache implements GlStateCache {
     public void bindTexture(int texture) {
         gl.bindTexture(texture);
     }
+
+    @Override
+    public void colorMask(boolean r, boolean g, boolean b, boolean a) {
+        gl.colorMask(r, g, b, a);
+    }
+
+    @Override
+    public void alphaFunc(int func, float ref) {
+        gl.alphaFunc(func, ref);
+    }
 }

@@ -85,4 +85,22 @@ public interface GlStateCache {
      * @param texture the texture
      */
     void bindTexture(int texture);
+
+    /**
+     * Sets which colour channels are written.
+     *
+     * @param r red
+     * @param g green
+     * @param b blue
+     * @param a alpha
+     */
+    void colorMask(boolean r, boolean g, boolean b, boolean a);
+
+    /**
+     * Sets the fixed-function alpha test comparison.
+     *
+     * @param func the comparison, such as {@code GL_GREATER}
+     * @param ref the reference alpha
+     */
+    void alphaFunc(int func, float ref);
 }

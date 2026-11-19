@@ -37,6 +37,15 @@ public final class FakeGl implements GlBackend, GlStateCache {
             case BLEND_SRC_ALPHA -> blend[2];
             case BLEND_DST_ALPHA -> blend[3];
             case ACTIVE_TEXTURE -> activeUnit;
+            case STENCIL_FUNC -> stencilState[0];
+            case STENCIL_REF -> stencilState[1];
+            case STENCIL_VALUE_MASK -> stencilState[2];
+            case STENCIL_FAIL -> stencilState[3];
+            case STENCIL_PASS_DEPTH_FAIL -> stencilState[4];
+            case STENCIL_PASS_DEPTH_PASS -> stencilState[5];
+            case STENCIL_WRITEMASK -> stencilState[6];
+            case STENCIL_BITS -> stencilBits;
+            case ALPHA_TEST_FUNC -> alphaFuncValue;
             case TEXTURE_BINDING_2D -> textureByUnit.getOrDefault(activeUnit, 0);
             default -> ints.getOrDefault(pname, 0);
         };
@@ -48,6 +57,10 @@ public final class FakeGl implements GlBackend, GlStateCache {
             System.arraycopy(viewport, 0, out, 0, 4);
         } else if (pname == SCISSOR_BOX) {
             System.arraycopy(scissorBox, 0, out, 0, 4);
+        } else if (pname == COLOR_WRITEMASK) {
+            for (int i = 0; i < 4; i++) {
+                out[i] = colorWrite[i] ? 1 : 0;
+            }
         }
     }
 
@@ -55,6 +68,8 @@ public final class FakeGl implements GlBackend, GlStateCache {
     public void getFloats(int pname, float[] out) {
         if (pname == CURRENT_COLOR) {
             System.arraycopy(color, 0, out, 0, 4);
+        } else if (pname == ALPHA_TEST_REF) {
+            out[0] = alphaRefValue;
         }
     }
 
@@ -336,5 +351,77 @@ public final class FakeGl implements GlBackend, GlStateCache {
         scissorBox[1] = y;
         scissorBox[2] = width;
         scissorBox[3] = height;
+    }
+
+    public final Set<Integer> liveTextures = new HashSet<>();
+
+    @Override
+    public int createRgbTexture(int width, int height, java.nio.ByteBuffer rgb) {
+        if (rgb.remaining() != width * height * 3) {
+            throw new IllegalArgumentException("texture bytes " + rgb.remaining());
+        }
+        int id = nextId++;
+        liveTextures.add(id);
+        calls.add("createTexture " + width + "x" + height);
+        return id;
+    }
+
+    @Override
+    public void deleteTexture(int texture) {
+        liveTextures.remove(texture);
+    }
+
+    public final int[] stencilState = {ALWAYS, 0, 0xFF, KEEP, KEEP, KEEP, 0xFF};
+    public final boolean[] colorWrite = {true, true, true, true};
+    public int alphaFuncValue = ALWAYS;
+    public float alphaRefValue;
+    public int stencilBits = 8;
+
+    @Override
+    public int stencilBits() {
+        return stencilBits;
+    }
+
+    @Override
+    public void stencilFunc(int func, int ref, int mask) {
+        calls.add("stencilFunc " + func + " " + ref);
+        stencilState[0] = func;
+        stencilState[1] = ref;
+        stencilState[2] = mask;
+    }
+
+    @Override
+    public void stencilOp(int sfail, int dpfail, int dppass) {
+        calls.add("stencilOp " + dppass);
+        stencilState[3] = sfail;
+        stencilState[4] = dpfail;
+        stencilState[5] = dppass;
+    }
+
+    @Override
+    public void stencilMask(int mask) {
+        calls.add("stencilMask " + mask);
+        stencilState[6] = mask;
+    }
+
+    @Override
+    public void clearStencil(int value) {
+        calls.add("clearStencil " + value);
+    }
+
+    @Override
+    public void colorMask(boolean r, boolean g, boolean b, boolean a) {
+        calls.add("colorMask " + r);
+        colorWrite[0] = r;
+        colorWrite[1] = g;
+        colorWrite[2] = b;
+        colorWrite[3] = a;
+    }
+
+    @Override
+    public void alphaFunc(int func, float ref) {
+        calls.add("alphaFunc " + func + " " + ref);
+        alphaFuncValue = func;
+        alphaRefValue = ref;
     }
 }

@@ -17,6 +17,7 @@ import org.lwjgl.opengl.GLCapabilities;
  */
 public final class Gl21Backend implements GlBackend {
     private static final int GL_RGBA8 = 0x8058;
+    private static final int GL_RGB8 = 0x8051;
     private static final int GL_DEPTH24_STENCIL8 = 0x88F0;
     private static final int GL_CLAMP_TO_EDGE = 0x812F;
     private static final int GL_COLOR_CLEAR_VALUE = 0x0C22;
@@ -329,6 +330,79 @@ public final class Gl21Backend implements GlBackend {
     @Override
     public void copyToBoundTexture(int width, int height) {
         GL11.glCopyTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+    }
+
+    @Override
+    public int createRgbTexture(int width, int height, ByteBuffer rgb) {
+        int previous = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+        int align = GL11.glGetInteger(GL11.GL_UNPACK_ALIGNMENT);
+        int tex = GL11.glGenTextures();
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, tex);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
+        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL11.GL_RGB, GL11.GL_UNSIGNED_BYTE, rgb);
+        GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, align);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, previous);
+        return tex;
+    }
+
+    @Override
+    public int stencilBits() {
+        if (GL11.glGetInteger(ARBFramebufferObject.GL_FRAMEBUFFER_BINDING) == 0) {
+            return GL11.glGetInteger(GL11.GL_STENCIL_BITS);
+        }
+        int type = ARBFramebufferObject.glGetFramebufferAttachmentParameteri(
+                ARBFramebufferObject.GL_FRAMEBUFFER,
+                ARBFramebufferObject.GL_STENCIL_ATTACHMENT,
+                ARBFramebufferObject.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE);
+        if (type == GL11.GL_NONE) {
+            return 0;
+        }
+        return ARBFramebufferObject.glGetFramebufferAttachmentParameteri(
+                ARBFramebufferObject.GL_FRAMEBUFFER,
+                ARBFramebufferObject.GL_STENCIL_ATTACHMENT,
+                ARBFramebufferObject.GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE);
+    }
+
+    @Override
+    public void stencilFunc(int func, int ref, int mask) {
+        GL11.glStencilFunc(func, ref, mask);
+    }
+
+    @Override
+    public void stencilOp(int sfail, int dpfail, int dppass) {
+        GL11.glStencilOp(sfail, dpfail, dppass);
+    }
+
+    @Override
+    public void stencilMask(int mask) {
+        GL11.glStencilMask(mask);
+    }
+
+    @Override
+    public void clearStencil(int value) {
+        int previous = GL11.glGetInteger(GL11.GL_STENCIL_CLEAR_VALUE);
+        GL11.glClearStencil(value);
+        GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
+        GL11.glClearStencil(previous);
+    }
+
+    @Override
+    public void colorMask(boolean r, boolean g, boolean b, boolean a) {
+        GL11.glColorMask(r, g, b, a);
+    }
+
+    @Override
+    public void alphaFunc(int func, float ref) {
+        GL11.glAlphaFunc(func, ref);
+    }
+
+    @Override
+    public void deleteTexture(int texture) {
+        GL11.glDeleteTextures(texture);
     }
 
     @Override
