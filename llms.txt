@@ -1,7 +1,7 @@
 # lol.trq.helios
 
-> A rendering library for Minecraft Forge 1.8.9 on LWJGL 3: SDF shapes, MSDF text, shaders, framebuffers, blur and
-> bloom. OpenGL 4.1 core profile only (Lazarus core mode), GLSL 410 core, Java 17 bytecode, no Mixin, MIT.
+> A rendering library for Minecraft Forge 1.8.9 on modern OpenGL: SDF shapes, MSDF text, blur, bloom, clipping,
+> 3D meshes and player-model anchors. OpenGL 4.1 core profile only (the Lazarus core renderer), GLSL 410 core, Java 17 bytecode, no Mixin, MIT.
 
 ## Docs
 

@@ -1,7 +1,8 @@
 # CLAUDE.md: working in lol.trq.helios
 
 A rendering library for Minecraft Forge 1.8.9 on LWJGL 3 (through lol.trq.lazarus). Java 17 bytecode, OpenGL 4.1
-core profile only (Lazarus `-Dlazarus.gl=core`), GLSL `410 core`, MIT. Rules: [docs/opengl.md](docs/opengl.md). File index: [llms.txt](llms.txt).
+core profile only (the Lazarus core renderer), GLSL `410 core`, MIT. Rules: [docs/opengl.md](docs/opengl.md). File
+index: [llms.txt](llms.txt).
 
 ## The 30-second mental model
 
@@ -58,7 +59,7 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
   camera-relative: positions are world minus `MinecraftWorld.camera()`. View bobbing is part of the camera and is
   included, which is right for overlays.
 - **Prove it in the game.** A rendering change runs `./gradlew :harness:runHarness25
-  -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"` (and with `-Poptifine=<jar>`); every `HELIOS-HARNESS check`
+  -PjvmArgs="-Dlazarus.gl.debug=true"`, also with `-Pworld` and with `-Poptifine=<jar>`. Every `HELIOS-HARNESS check`
   line must pass and no `[lazarus] GL error` may appear. Look at the screenshots.
 
 ## Pitfalls to avoid
@@ -71,8 +72,8 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
   turn the test off before drawing into one.
 - Forge `Framebuffer.enableStencil()` recreates the framebuffer and leaves nothing bound;
   `MinecraftHelios.enableStencil()` binds it again.
-- Vertex attribute pointers are not restored (code using generic attribute arrays sets its pointers before drawing);
-  their enable flags are.
+- Attribute pointers live in each vertex array. Helios restores the host's bound vertex array, not attribute state
+  inside it, so never point attributes while the host's vertex array is bound.
 - The harness opens a game window. Do not launch it from an agent without the owner's go-ahead.
 - No Mixin in core, and no Minecraft class referenced outside `lol.trq.helios.minecraft`.
 
