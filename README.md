@@ -3,23 +3,24 @@
 A rendering library for Minecraft Forge 1.8.9 running on LWJGL 3: SDF shapes, MSDF text, shaders, framebuffers,
 blur and bloom, with strict GL state discipline so vanilla and OptiFine keep a coherent state.
 
-Status: early development (milestone H3), nothing released yet. See [CHANGELOG.md](CHANGELOG.md).
+Status: early development (milestone H3.5), nothing released yet. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements
 
 - Minecraft 1.8.9 with Forge 11.15.1.2318, on Java 17 or newer, running on LWJGL 3 through
   [lol.trq.lazarus](https://github.com/trq-lol/lol.trq.lazarus).
-- OpenGL 2.1 with `ARB_framebuffer_object`. Every built-in shader is GLSL 1.20, so Helios runs in the legacy 2.1
-  context macOS gives the game.
+- Lazarus core mode (`-Dlazarus.gl=core`): an OpenGL 4.1 core profile context, on Windows, Linux and macOS. Every
+  shader is `#version 410 core`; there is no legacy-context path. Helios checks this at start-up and says how to fix
+  it. See [docs/opengl.md](docs/opengl.md) for the dialect and the drawing rules.
 
 ## What is here
 
 | Package | |
 |---|---|
 | `lol.trq.helios` | `Helios`: one instance per GL context, owning the pieces below |
-| `gl` | `GlBackend`, the seam every GL call goes through; `Gl21Backend`, the OpenGL 2.1 baseline |
+| `gl` | `GlBackend`, the seam every GL call goes through; `Gl41CoreBackend`, the OpenGL 4.1 core backend; `StreamBuffer`, the per-frame upload ring |
 | `state` | `StateGuard` saves what a draw touches and restores it; `GlStateCache` routes cached state through the host; `ScissorStack` for nested clips; `StencilMask` to clip to any shape |
-| `shader` | Loader with `#include`, defines, `file:line` errors, attribute binding, a uniform location cache and reload |
+| `shader` | Loader for GLSL 4.10 core with `#include`, defines, `file:line` errors, a uniform location cache and reload |
 | `fbo` | `FramebufferPool`, sized in framebuffer pixels so effects stay sharp on high-DPI screens |
 | `batch` | `ShapeBatch`: rounded rects, outlines, circles, arcs, lines, polylines, drop shadows, inner glow and images, many per draw call, all anti-aliased over exactly one pixel; `Paint` for solid, corner, linear and radial gradients |
 | `effect` | Dual Kawase blur, blur behind a shape (frosted glass), bloom, post-processing chains |
@@ -136,12 +137,14 @@ try (StateGuard g = helios.guard()) {
 ```
 ./gradlew spotlessCheck build        # unit tests, no GL needed; also builds the font atlas
 ./gradlew :helios:jmh                # CPU benchmarks, see BENCHMARKS.md
-./gradlew :harness:runHarness25      # boots the game, checks pixels and GL state on the main menu, exits
-./gradlew :harness:runHarness21 -Poptifine=<path to an OptiFine 1.8.9 jar>
+./gradlew :harness:runHarness25 -PlazarusJar=<jar> -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"
+./gradlew :harness:runHarness21 -PlazarusJar=<jar> -PjvmArgs="..." -Poptifine=<path to an OptiFine 1.8.9 jar>
 ```
 
-The harness downloads Minecraft 1.8.9, Forge and the lol.trq.lazarus release jar (checking its SHA-256) into
-`.harness-cache/`, boots the game on LWJGL 3 with sound muted, and loads a test mod. On the main menu the mod:
+The harness downloads Minecraft 1.8.9 and Forge into `.harness-cache/`, boots the game on LWJGL 3 in Lazarus core
+mode with sound muted and the splash screen off, and loads a test mod. Core mode is not in a Lazarus release yet, so
+`-PlazarusJar` points at a jar built from its `feat/core-gl` branch; without it the harness uses the checksummed
+release jar. With `-Dlazarus.gl.debug=true` any `[lazarus] GL error` line fails the run. On the main menu the mod:
 
 - draws every primitive and compares each pixel around it with a software model of the shader (within 3/255);
 - checks that many shapes go out in one draw call;
@@ -158,8 +161,8 @@ With `-Pbench` it also prints GPU timings; see [BENCHMARKS.md](BENCHMARKS.md). W
 world and checks projection with the real camera matrices: a point ahead of the player's eyes must project to the
 exact screen centre, and the player's interpolated position must sit on the camera. The harness turns view bobbing
 off for this. It opens a game window while it
-runs. OptiFine cannot be redistributed: point `-Poptifine` at a local copy. CI runs
-the harness on Linux under a virtual display with software OpenGL.
+runs. OptiFine cannot be redistributed: point `-Poptifine` at a local copy. CI builds Lazarus from that branch and
+runs the harness in core mode on Linux under a virtual display with Mesa's software OpenGL (core 4.5).
 
 ## For AI agents
 

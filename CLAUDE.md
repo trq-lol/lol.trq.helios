@@ -1,21 +1,22 @@
 # CLAUDE.md: working in lol.trq.helios
 
-A rendering library for Minecraft Forge 1.8.9 on LWJGL 3 (through lol.trq.lazarus). Java 17 bytecode, OpenGL 2.1 +
-GLSL 1.20 + `ARB_framebuffer_object` baseline, MIT. File index: [llms.txt](llms.txt).
+A rendering library for Minecraft Forge 1.8.9 on LWJGL 3 (through lol.trq.lazarus). Java 17 bytecode, OpenGL 4.1
+core profile only (Lazarus `-Dlazarus.gl=core`), GLSL `410 core`, MIT. Rules: [docs/opengl.md](docs/opengl.md). File index: [llms.txt](llms.txt).
 
 ## The 30-second mental model
 
 ```
 Helios (one per GL context)
-  GlBackend            every GL call; Gl21Backend = baseline, fakes in tests, faster backends later
-  GlStateCache         states the host caches (GlStateManager): blend, depth, cull, alpha, texture2D, colour
+  GlBackend            every GL call; Gl41CoreBackend checks the context, binds via GL15/GL20/GL30, draws via *C
+  StreamBuffer         ring of 3 VBOs, appended per frame with glBufferSubData, fenced at Helios.tick()
+  GlStateCache         states the host caches (GlStateManager): blend, depth, cull, active texture, texture, mask
   StateGuard           first touch of a slot saves it from GL; close() restores newest first, cached slots via the cache
   ShaderLoader         ShaderPreprocessor (#include, defines, #line) -> compile/link -> ShaderProgram (uniform cache)
   FramebufferPool      sized from SurfaceSize = framebuffer pixels; a resize retires everything
-  ShapeBatch           72-byte vertices in a streamed VBO, one quad per shape, GL_QUADS; kind + params per vertex;
-                       flushes when full, on a texture change, at end(); each flush is one guarded draw
+  ShapeBatch           72-byte vertices via StreamBuffer, own VAO + static IBO, indexed triangles, u_mvp from the
+                       game's matrices; flushes when full, on a texture change, at end(); one guarded draw each
   Passes / Effects     screen capture, dual Kawase blur, composite; blurBehind, bloom; PostChain; ScissorStack
-  StencilMask          mask drawn with alpha cutoff 0.5 into the stencil, then content with EQUAL / NOTEQUAL
+  StencilMask          mask drawn with u_alphaCutoff 0.5 (shader discard) into the stencil, then EQUAL / NOTEQUAL
   TextRenderer         MsdfFont (.hfnt: metrics, kerning, deflated RGB atlas) -> layout -> ShapeBatch.glyph (kind 5)
   ShaderHotReload      dev only: polls source mtimes, ShaderLoader.reloadAll(); Helios.tick() drives it
 color/ anim/ math/     pure Java, allocation-free: Colors (packed ARGB), Easing/Animation/Smooth/Stopwatch on a
@@ -28,15 +29,20 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
 
 - **Every state change goes through a `StateGuard`.** Cached states go through `GlStateCache`, never straight to GL:
   a change behind the back of `GlStateManager` makes a later vanilla or OptiFine call a silent no-op.
-- **Baseline first.** Shaders are `#version 120`; use `gl_Vertex`, `gl_MultiTexCoord0`, `varying`, `gl_FragColor`.
-  Anything newer sits behind a `GLCapabilities` check with a baseline fallback, as another `GlBackend`.
+- **Core 4.1, nothing else.** Shaders are `#version 410 core` with `layout(location)` inputs and outputs, interface
+  blocks, matrices as uniforms. No fixed-function built-ins, nothing past 4.1 (macOS). The preprocessor rejects any
+  other `#version`.
+- **Binds through `GL15`/`GL20`/`GL30`, draws through `GL11C`/`GL32C`.** Lazarus intercepts the binds to keep its
+  cache true and sends `GL11.glDrawArrays` to its fixed-function emulator. Only `Gl41CoreBackend` calls LWJGL.
+- **Own buffers, indexed triangles, one VAO per mesh.** Never `GL_QUADS`, immediate mode or display lists in Helios.
+  Batch: uploads are what costs on Apple.
 - **Sizes in framebuffer pixels.** `Minecraft.displayWidth` is framebuffer pixels on LWJGL 3; window points are not.
 - **The Java SDF mirrors the GLSL.** `sdf/Sdf.java` and `shaders/lib/sdf.glsl` must behave identically. The harness
   model (`harness-mod/.../Model.java`) mirrors `shape.fsh` and is compared with every rendered pixel.
 - **Coverage uses the pixel size of the local coordinates** (`length(dFdx(p))`), never derivatives of the distance:
   those are wrong at tight curves and corners and cost 10+/255 at round caps.
 - **The vertex layout lives in three places**: `ShapeBatch` (writer and attribute list), `shape.vsh`, and
-  `ShapeBatchTest` (decoder). Change them together. Attribute 0 must be the position: GL 2.1 draws nothing without it.
+  `ShapeBatchTest` (decoder). Change them together; locations in `shape.vsh` follow `ShapeBatch.ATTRIBUTES`.
 - **The `.hfnt` format has two sides**: `AtlasBuilder.write` (fontgen) and `MsdfFont` (helios). Bump
   `VERSION` in both when it changes.
 - **Measure, then optimize.** Hot paths (batch emit, text layout, guards) are allocation-light; run
@@ -46,8 +52,9 @@ minecraft/             the only Minecraft-aware package: reflection with SRG nam
 - **Projection is in the space it was captured in.** Capture in a world hook and Minecraft's matrices are
   camera-relative: positions are world minus `MinecraftWorld.camera()`. View bobbing is part of the camera and is
   included, which is right for overlays.
-- **Prove it in the game.** A rendering change runs `./gradlew :harness:runHarness25` (and with `-Poptifine=<jar>`);
-  every `HELIOS-HARNESS check` line must pass. Look at the screenshots.
+- **Prove it in the game.** A rendering change runs `./gradlew :harness:runHarness25 -PlazarusJar=<jar>
+  -PjvmArgs="-Dlazarus.gl=core -Dlazarus.gl.debug=true"` (and with `-Poptifine=<jar>`); every `HELIOS-HARNESS check`
+  line must pass and no `[lazarus] GL error` may appear. Look at the screenshots.
 
 ## Pitfalls to avoid
 

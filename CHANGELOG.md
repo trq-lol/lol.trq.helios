@@ -5,6 +5,20 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Helios now requires Lazarus core mode (`-Dlazarus.gl=core`): an OpenGL 4.1 core profile context. `Gl41CoreBackend`
+  replaces `Gl21Backend` and checks the context at start-up. Every shader is `#version 410 core`; the preprocessor
+  rejects other versions. See `docs/opengl.md`.
+- `ShapeBatch` draws indexed triangles from its own vertex array and a static index buffer, with the game's matrices
+  as a `u_mvp` uniform; vertex data streams through `StreamBuffer`, a fenced ring of buffers rotated by
+  `Helios.tick()`. Full-screen passes draw one triangle from `gl_VertexID`.
+- The stencil mask's alpha cutoff is a shader `discard` (`u_alphaCutoff`) instead of the fixed-function alpha test.
+- `StateGuard` saves the vertex array binding instead of vertex attribute flags; the alpha test, alpha function,
+  `GL_TEXTURE_2D` and current colour slots are gone, as are the matching `GlStateCache` and `GlBackend` methods.
+- The harness runs in core mode only, with `-PlazarusJar` for a Lazarus build that has it, the splash screen off,
+  and fails on any `[lazarus] GL error`.
+
 ### Added
 
 - `GlBackend` seam with an OpenGL 2.1 + `ARB_framebuffer_object` backend on LWJGL 3.
