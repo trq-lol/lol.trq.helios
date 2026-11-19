@@ -23,9 +23,11 @@ jobs:
       - run: ./gradlew :helios:javadoc
       - uses: actions/configure-pages@v6
         if: github.ref == 'refs/heads/main'
+      - name: Add the docs to the site source
+        run: rsync -a --exclude=site --exclude=".*" --exclude=build ./ site/
       - uses: actions/jekyll-build-pages@v1
         with:
-          source: ./
+          source: ./site
           destination: ./_site
       - name: Add the Javadoc under /api/
         run: |
