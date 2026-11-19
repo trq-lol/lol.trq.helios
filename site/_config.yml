@@ -1,9 +1,9 @@
 title: Helios
-description: A rendering library for Minecraft Forge 1.8.9 on modern OpenGL: shapes, text, blur, bloom, meshes and player anchors.
+description: "A rendering library for Minecraft Forge 1.8.9 on modern OpenGL: shapes, text, blur, bloom, meshes and player anchors."
 url: https://helios.trq.lol
 baseurl: ""
 wordmark: helios
-tagline: A rendering library for Minecraft Forge 1.8.9 on modern OpenGL.
+tagline: "A rendering library for Minecraft Forge 1.8.9 on modern OpenGL."
 license: MIT
 repo: https://github.com/trq-lol/lol.trq.helios
 
