@@ -94,7 +94,89 @@ final class WorldCheck {
                 Math.abs(box[3] - box[0] - 0.6) < 1e-3 && Math.abs(box[4] - box[1] - 1.8) < 1e-3,
                 java.util.Arrays.toString(box));
         boolean meshes = checkMeshes(helios, world, player, pt, cam);
+        showcase(helios, yaw);
         return centred && behind && offset < 0.01 && meshes;
+    }
+
+    /**
+     * Draws a player's anchors with every sink on a stand-in pose three blocks ahead, facing the camera, and saves the
+     * frame as {@code world.png} for a visual check: a red quad on the face, a cyan wire cube around the head, a gold
+     * static plate on the head top, a textured, lit cape on the back and a white line along the body.
+     */
+    private static void showcase(Helios helios, float yaw) {
+        PlayerPose pose = new PlayerPose().reset();
+        double yr = Math.toRadians(yaw);
+        pose.x = -Math.sin(yr) * 3;
+        pose.z = Math.cos(yr) * 3;
+        pose.bodyYaw = yaw + 160;
+        pose.headYaw = yaw + 180;
+        pose.pitch = 10;
+        GlBackend gl = helios.gl();
+        MeshRenderer meshes = helios.meshes();
+        float[] m = new float[16];
+        int texture = gl.createRgbTexture(
+                2,
+                2,
+                java.nio.ByteBuffer.allocateDirect(12)
+                        .put(new byte[] {-1, 0, 0, 0, -1, 0, 0, 0, -1, -1, -1, -1})
+                        .flip());
+        MeshRecorder rec = new MeshRecorder(MeshFormat.TEXTURED);
+        rec.textured()
+                .vertex(-4, 0, -4, 0, 0, 0, -1, 0, 0xFFFFD700)
+                .vertex(4, 0, -4, 1, 0, 0, -1, 0, 0xFFFFD700)
+                .vertex(4, 0, 4, 1, 1, 0, -1, 0, 0xFFFFD700)
+                .vertex(-4, 0, 4, 0, 1, 0, -1, 0, 0xFFFFD700);
+        StaticMesh plate = rec.build(meshes);
+        // Terrain may stand in front; draw over it, back to front.
+        meshes.depth(false, false);
+        try {
+            meshes.texture(texture)
+                    .textured()
+                    .transform(PlayerModel.anchor(pose, Attachment.BACK, m))
+                    .vertex(-5, 0, 0.1f, 0, 0, 0, 0, 1, -1)
+                    .vertex(5, 0, 0.1f, 1, 0, 0, 0, 1, -1)
+                    .vertex(5, 16, 0.1f, 1, 1, 0, 0, 1, -1)
+                    .vertex(-5, 16, 0.1f, 0, 1, 0, 0, 1, -1)
+                    .transform(null);
+            meshes.lines()
+                    .transform(PlayerModel.anchor(pose, Attachment.BODY, m))
+                    .line(0, 0, 0, 0, 12, 0, 0xFFFFFFFF, 3)
+                    .transform(null);
+            PlayerModel.anchor(pose, Attachment.HEAD, m);
+            float[][] c = {
+                {-4, 0, -4}, {4, 0, -4}, {4, 0, 4}, {-4, 0, 4}, {-4, 8, -4}, {4, 8, -4}, {4, 8, 4}, {-4, 8, 4}
+            };
+            int[][] e = {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6}, {6, 7}, {7, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}
+            };
+            meshes.lines().transform(m);
+            for (int[] edge : e) {
+                float[] p0 = c[edge[0]];
+                float[] p1 = c[edge[1]];
+                meshes.lines().line(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], 0xFF00E5FF, 2);
+            }
+            meshes.lines().transform(null);
+            meshes.quads()
+                    .transform(m)
+                    .vertex(-3, 2, -4.1f, 0xC0FF2020)
+                    .vertex(3, 2, -4.1f, 0xC0FF2020)
+                    .vertex(3, 7, -4.1f, 0xC0FF2020)
+                    .vertex(-3, 7, -4.1f, 0xC0FF2020)
+                    .transform(null);
+            meshes.draw(plate, m);
+            meshes.texture(0).flush();
+            int[] vp = new int[4];
+            gl.getIntegers(GlBackend.VIEWPORT, vp);
+            java.io.File out = new java.io.File("helios", "world.png");
+            out.getParentFile().mkdirs();
+            javax.imageio.ImageIO.write(Checks.image(Checks.read(vp), vp[2], vp[3], 0, 0, vp[2], vp[3], 1), "png", out);
+            System.out.println("HELIOS-HARNESS screenshot " + out.getAbsolutePath());
+        } catch (java.io.IOException ex) {
+            report("world screenshot saves", false, ex.toString());
+        } finally {
+            meshes.depth(true, true);
+            plate.close();
+            gl.deleteTexture(texture);
+        }
     }
 
     /** Reads the player's pose, checks the head anchor height, and draws through every mesh sink at the anchors. */

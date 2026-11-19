@@ -768,7 +768,7 @@ final class Checks {
     }
 
     /** Builds an image from a bottom-up RGBA readback; x, y are top-down. */
-    private static BufferedImage image(ByteBuffer rgba, int w, int h, int x, int y, int cw, int ch, int scale) {
+    static BufferedImage image(ByteBuffer rgba, int w, int h, int x, int y, int cw, int ch, int scale) {
         BufferedImage img = new BufferedImage(cw * scale, ch * scale, BufferedImage.TYPE_INT_RGB);
         for (int row = 0; row < ch; row++) {
             for (int col = 0; col < cw; col++) {
@@ -789,7 +789,7 @@ final class Checks {
         return img;
     }
 
-    private static ByteBuffer read(int[] box) {
+    static ByteBuffer read(int[] box) {
         ByteBuffer buf = BufferUtils.createByteBuffer(Math.max(1, box[2] * box[3] * 4));
         int align = GL11.glGetInteger(GL11.GL_PACK_ALIGNMENT);
         GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 1);
