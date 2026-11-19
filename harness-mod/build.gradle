@@ -1,0 +1,26 @@
+// Test mod for the harness: draws Helios shapes on the main menu, checks the pixels and GL state, saves screenshots,
+// and exits. Not published. Helios's classes are bundled into the mod jar.
+repositories {
+    maven {
+        url = 'https://maven.minecraftforge.net/'
+        content { includeGroup 'net.minecraftforge' }
+    }
+}
+
+configurations {
+    bundled
+}
+
+dependencies {
+    implementation project(':helios')
+    compileOnly('net.minecraftforge:forge:1.8.9-11.15.1.2318-1.8.9:universal') { transitive = false }
+    compileOnly 'org.apache.logging.log4j:log4j-api:2.0-beta9'
+    compileOnly "org.lwjgl:lwjgl:${lwjglVersion}"
+    compileOnly "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
+}
+
+tasks.named('jar') {
+    archiveBaseName = 'helios-harness-mod'
+    dependsOn ':helios:classes'
+    from project(':helios').sourceSets.main.output
+}
