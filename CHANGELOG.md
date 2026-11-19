@@ -12,7 +12,7 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- The harness runs on the Lazarus 0.3.0 release.
+- The harness runs on the Lazarus 0.4.1 release.
 
 ## [0.1.0] - 2026-11-19
 

@@ -415,8 +415,9 @@ public final class DevLaunch {
         // exactly where the player faces (the world projection check depends on it).
         Path options = gameDir.resolve("options.txt");
         Files.writeString(options, "soundCategory_master:0.0\nmusicVolume:0.0\nfboEnable:true\nbobView:false\n");
-        // Forge's splash screen draws from a second thread on a shared context. Lazarus 0.3.0 core mode still reports
-        // GL errors from that thread's immediate-mode draws, so it stays off until a Lazarus release fixes them.
+        // Forge's splash screen draws from a second thread on a shared context. Lazarus 0.4.1 reports no GL errors
+        // from it, but its emulator still shares the matrix mode and stacks between threads, and with the splash on
+        // the world projection check intermittently reads corrupted matrices. Off until a Lazarus release fixes that.
         Path splash = gameDir.resolve("config/splash.properties");
         Files.createDirectories(splash.getParent());
         Files.writeString(splash, "enabled=false\n");
