@@ -2,8 +2,19 @@
 package lol.trq.helios.harness.mod;
 
 import lol.trq.helios.Helios;
+import lol.trq.helios.gl.GlBackend;
+import lol.trq.helios.math.Mat4;
 import lol.trq.helios.math.Projector;
+import lol.trq.helios.mesh.MeshFormat;
+import lol.trq.helios.mesh.MeshRecorder;
+import lol.trq.helios.mesh.MeshRenderer;
+import lol.trq.helios.mesh.StaticMesh;
+import lol.trq.helios.mesh.TexturedSink;
+import lol.trq.helios.minecraft.MinecraftPlayerPose;
 import lol.trq.helios.minecraft.MinecraftWorld;
+import lol.trq.helios.model.Attachment;
+import lol.trq.helios.model.PlayerModel;
+import lol.trq.helios.model.PlayerPose;
 
 /**
  * World mode ({@code -Dhelios.harness.world=true}): creates a singleplayer world and, after the world renders, checks
@@ -82,7 +93,70 @@ final class WorldCheck {
                 "player box is 0.6 wide and 1.8 tall",
                 Math.abs(box[3] - box[0] - 0.6) < 1e-3 && Math.abs(box[4] - box[1] - 1.8) < 1e-3,
                 java.util.Arrays.toString(box));
-        return centred && behind && offset < 0.01;
+        boolean meshes = checkMeshes(helios, world, player, pt, cam);
+        return centred && behind && offset < 0.01 && meshes;
+    }
+
+    /** Reads the player's pose, checks the head anchor height, and draws through every mesh sink at the anchors. */
+    private static boolean checkMeshes(Helios helios, MinecraftWorld world, Object player, float pt, double[] cam) {
+        PlayerPose pose = new MinecraftPlayerPose(WorldCheck.class.getClassLoader(), world)
+                .read(player, pt, cam, new PlayerPose());
+        float[] m = new float[16];
+        float[] p = new float[4];
+        Mat4.transform(PlayerModel.anchor(pose, Attachment.HEAD, m), 0, 0, 0, 1, p);
+        double above = p[1] - pose.y;
+        boolean head = !pose.sneaking && !pose.helmet && Math.abs(above - 1.88232421875) < 1e-3;
+        report("head anchor sits 1.882 blocks above the feet", head, "above " + above + " " + pose.sneaking);
+        report("the client player is recognised", pose.clientPlayer, "clientPlayer false");
+
+        GlBackend gl = helios.gl();
+        int program = gl.getInteger(GlBackend.CURRENT_PROGRAM);
+        int vao = gl.getInteger(GlBackend.VERTEX_ARRAY_BINDING);
+        int buffer = gl.getInteger(GlBackend.ARRAY_BUFFER_BINDING);
+        MeshRenderer meshes = helios.meshes();
+        int before = meshes.drawCalls();
+        int texture = gl.createRgbTexture(
+                1,
+                1,
+                java.nio.ByteBuffer.allocateDirect(3)
+                        .put(new byte[] {-1, -1, -1})
+                        .flip());
+        MeshRecorder rec = new MeshRecorder(MeshFormat.TEXTURED);
+        TexturedSink t = rec.textured();
+        t.vertex(-4, 0, -4, 0, 0, 0, -1, 0, 0xFFFFD700).vertex(4, 0, -4, 1, 0, 0, -1, 0, 0xFFFFD700);
+        t.vertex(4, 0, 4, 1, 1, 0, -1, 0, 0xFFFFD700).vertex(-4, 0, 4, 0, 1, 0, -1, 0, 0xFFFFD700);
+        StaticMesh hat = rec.build(meshes);
+        try {
+            PlayerModel.anchor(pose, Attachment.BACK, m);
+            meshes.quads()
+                    .transform(m)
+                    .vertex(-5, 0, 0, 0x80FF0000)
+                    .vertex(5, 0, 0, 0x80FF0000)
+                    .vertex(5, 16, 0, 0x80FF0000)
+                    .vertex(-5, 16, 0, 0x80FF0000)
+                    .transform(null);
+            meshes.lines().line(-1, 0, 1, 1, 2, 1, 0xFF00FFFF, 2).line(0, 0, -50, 0, 0, 50, 0xFFFFFFFF, 0.5f);
+            meshes.texture(texture)
+                    .textured()
+                    .transform(m)
+                    .vertex(-5, 0, 0, 0, 0, 0, 0, 1, -1)
+                    .vertex(5, 0, 0, 1, 0, 0, 0, 1, -1)
+                    .vertex(5, 16, 0, 1, 1, 0, 0, 1, -1)
+                    .vertex(-5, 16, 0, 0, 1, 0, 0, 1, -1)
+                    .transform(null);
+            meshes.draw(hat, PlayerModel.anchor(pose, Attachment.HEAD, m));
+            meshes.texture(0).flush();
+        } finally {
+            hat.close();
+            gl.deleteTexture(texture);
+        }
+        boolean drew = meshes.drawCalls() - before == 4;
+        report("every mesh sink and a static mesh draw", drew, (meshes.drawCalls() - before) + " draw calls");
+        boolean restored = gl.getInteger(GlBackend.CURRENT_PROGRAM) == program
+                && gl.getInteger(GlBackend.VERTEX_ARRAY_BINDING) == vao
+                && gl.getInteger(GlBackend.ARRAY_BUFFER_BINDING) == buffer;
+        report("mesh drawing restores program, vertex array and array buffer", restored, "bindings changed");
+        return head && pose.clientPlayer && drew && restored;
     }
 
     private static boolean failed;
