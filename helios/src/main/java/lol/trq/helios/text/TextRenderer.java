@@ -170,7 +170,8 @@ public final class TextRenderer {
             }
             if (glyphFont != font) {
                 font = glyphFont;
-                weightField = style.weight * font.emSize() / font.pxRange();
+                float extra = font == primary ? 0 : style.fallback.weight(font);
+                weightField = (style.weight + extra) * font.emSize() / font.pxRange();
                 prev = -1;
             }
             if (obfuscated) {

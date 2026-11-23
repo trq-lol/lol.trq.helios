@@ -5,6 +5,12 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-23
+
+### Added
+
+- `TextStyle.Fallback.weight` thickens fallback fonts to match a bold primary font.
+
 ## [0.1.6] - 2026-11-23
 
 ### Added

@@ -28,6 +28,16 @@ public final class TextStyle {
          * @return the font, or null to draw the replacement glyph
          */
         MsdfFont font(int codepoint);
+
+        /**
+         * Returns extra stroke weight for a font's characters, to match a bold primary font.
+         *
+         * @param font a font this fallback returned
+         * @return thickening in em, as in {@link Builder#weight(float)}
+         */
+        default float weight(MsdfFont font) {
+            return 0;
+        }
     }
 
     final MsdfFont font;
