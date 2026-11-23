@@ -16,8 +16,10 @@ import javax.imageio.ImageIO;
  * Command line: builds an {@code .hfnt} MSDF atlas from a TrueType or OpenType font.
  *
  * <pre>
- * FontGen --font Inter-Regular.ttf --out inter.hfnt [--name inter] [--size 40] [--range 4] [--png preview.png]
+ * FontGen --font Inter-Regular.ttf --out inter.hfnt [--name inter] [--size 40] [--range 4] [--chars chars.txt] [--png preview.png]
  * </pre>
+ *
+ * <p>{@code --chars} names a UTF-8 file whose characters replace the default set.
  */
 public final class FontGen {
     private FontGen() {}
@@ -42,7 +44,7 @@ public final class FontGen {
             font = Font.createFont(Font.TRUETYPE_FONT, in);
         }
         long start = System.nanoTime();
-        AtlasBuilder.Atlas atlas = AtlasBuilder.build(font, name, size, range, AtlasBuilder.defaultCharset());
+        AtlasBuilder.Atlas atlas = AtlasBuilder.build(font, name, size, range, charset(opts.get("chars")));
         Files.createDirectories(out.toAbsolutePath().getParent());
         try (OutputStream o = Files.newOutputStream(out)) {
             AtlasBuilder.write(atlas, o);
@@ -70,6 +72,17 @@ public final class FontGen {
             }
         }
         return img;
+    }
+
+    private static int[] charset(String file) throws IOException {
+        return file == null
+                ? AtlasBuilder.defaultCharset()
+                : Files.readString(Path.of(file))
+                        .codePoints()
+                        .filter(c -> c >= 32)
+                        .distinct()
+                        .sorted()
+                        .toArray();
     }
 
     private static String require(Map<String, String> opts, String key) {

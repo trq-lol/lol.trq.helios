@@ -5,6 +5,14 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `fontgen --chars <file>` builds an atlas from a chosen set of characters.
+
+### Fixed
+
+- `fontgen` merges overlapping contours, which left holes in glyphs such as Arabic ligatures.
+
 ### Changed
 
 - The harness runs on the Lazarus 0.4.3 release.

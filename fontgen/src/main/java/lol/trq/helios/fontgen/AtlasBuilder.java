@@ -8,6 +8,7 @@ import java.awt.font.GlyphVector;
 import java.awt.font.LineMetrics;
 import java.awt.font.TextAttribute;
 import java.awt.font.TextLayout;
+import java.awt.geom.Area;
 import java.awt.geom.Rectangle2D;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -88,7 +89,8 @@ public final class AtlasBuilder {
             }
             GlyphVector gv = f.createGlyphVector(frc, Character.toChars(cp));
             float advance = gv.getGlyphMetrics(0).getAdvanceX() / emSize;
-            Shape outline = gv.getGlyphOutline(0);
+            // Overlapping contours (Arabic ligatures, for one) would leave holes in the field.
+            Shape outline = new Area(gv.getGlyphOutline(0));
             Rectangle2D b = outline.getBounds2D();
             GlyphShape shape = GlyphShape.of(outline);
             if (shape.isEmpty() || b.isEmpty()) {
