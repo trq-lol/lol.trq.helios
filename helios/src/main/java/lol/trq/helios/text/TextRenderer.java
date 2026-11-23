@@ -111,7 +111,8 @@ public final class TextRenderer {
             TextStyle style,
             boolean shadow,
             float softness) {
-        MsdfFont font = style.font;
+        MsdfFont primary = style.font;
+        MsdfFont font = primary;
         float size = style.size;
         int baseColor = style.color;
         int color = baseColor;
@@ -120,7 +121,6 @@ public final class TextRenderer {
         boolean underline = false;
         boolean strike = false;
         boolean obfuscated = false;
-        int texture = batch == null ? 0 : font.texture(gl);
         float weightField = style.weight * font.emSize() / font.pxRange();
         float pen = x;
         int prev = -1;
@@ -152,9 +152,26 @@ public final class TextRenderer {
                 }
                 continue;
             }
-            MsdfFont.Glyph g = font.glyph(cp);
+            MsdfFont.Glyph g = primary.glyphOrNull(cp);
+            MsdfFont glyphFont = primary;
+            if (g == null && style.fallback != null) {
+                MsdfFont other = style.fallback.font(cp);
+                if (other != null) {
+                    g = other.glyphOrNull(cp);
+                    glyphFont = other;
+                }
+            }
+            if (g == null) {
+                g = primary.glyph(cp);
+                glyphFont = primary;
+            }
             if (g == null) {
                 continue;
+            }
+            if (glyphFont != font) {
+                font = glyphFont;
+                weightField = style.weight * font.emSize() / font.pxRange();
+                prev = -1;
             }
             if (obfuscated) {
                 g = Obfuscation.replace(font, g, i);
@@ -171,7 +188,7 @@ public final class TextRenderer {
                     float bottom = g.bottom() * size;
                     float weight = weightField + (bold ? BOLD_WEIGHT * font.emSize() / font.pxRange() : 0);
                     batch.glyph(
-                            texture,
+                            font.texture(gl),
                             pen + g.left() * size,
                             baseline + top,
                             pen + g.right() * size,

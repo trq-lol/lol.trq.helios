@@ -8,10 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.DeflaterOutputStream;
 import lol.trq.helios.FakeGl;
 import lol.trq.helios.Helios;
 import lol.trq.helios.batch.ShapeBatch;
@@ -159,6 +163,61 @@ class TextTest {
     @Test
     void obfuscatedKeepsTheAdvance() {
         assertEquals(text.width("Hello", style(9)), text.width("§kHello", style(9)), 0.6f);
+    }
+
+    /** A font with the single character U+4E00, half an em wide. */
+    private static MsdfFont oneGlyph() throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        DataOutputStream d = new DataOutputStream(bytes);
+        d.writeInt(MsdfFont.MAGIC);
+        d.writeInt(MsdfFont.VERSION);
+        d.writeUTF("one");
+        for (float f : new float[] {32, 4, 2, 0.5f, 0}) {
+            d.writeFloat(f);
+        }
+        d.writeInt(4);
+        d.writeInt(4);
+        d.writeInt(1);
+        d.writeInt(0x4E00);
+        for (float f : new float[] {0.5f, 0, -0.5f, 0.5f, 0}) {
+            d.writeFloat(f);
+        }
+        for (int i : new int[] {0, 0, 4, 4}) {
+            d.writeInt(i);
+        }
+        d.writeInt(0);
+        ByteArrayOutputStream packed = new ByteArrayOutputStream();
+        try (DeflaterOutputStream z = new DeflaterOutputStream(packed)) {
+            z.write(new byte[48]);
+        }
+        d.writeInt(packed.size());
+        packed.writeTo(d);
+        return MsdfFont.read(new ByteArrayInputStream(bytes.toByteArray()));
+    }
+
+    @Test
+    void missingCharactersComeFromTheFallbackOnTheSameBaseline() throws IOException {
+        MsdfFont one = oneGlyph();
+        TextStyle s = TextStyle.builder(inter)
+                .size(10)
+                .fallback(cp -> cp == 0x4E00 ? one : null)
+                .build();
+        assertEquals(text.width("A", s) + 5 + text.width("V", s), text.width("A一V", s), 1e-4f);
+        assertEquals(inter.glyph(0x4E01).advance() * 10, text.width("丁", s), 1e-4f);
+        batch.begin(1);
+        text.draw(batch, "一", 0, 0, s);
+        batch.end();
+        assertEquals(Math.round(inter.ascent() * 10) - 5, quads().get(0)[2], 1e-4f);
+    }
+
+    @Test
+    void everyFontSwitchIsItsOwnDrawCall() throws IOException {
+        MsdfFont one = oneGlyph();
+        TextStyle s = TextStyle.builder(inter).size(10).fallback(cp -> one).build();
+        batch.begin(1);
+        text.draw(batch, "A一", 0, 0, s);
+        batch.end();
+        assertEquals(inter.texture(gl) == one.texture(gl) ? 1 : 2, batch.drawCalls());
     }
 
     @Test

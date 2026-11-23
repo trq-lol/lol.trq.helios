@@ -5,8 +5,11 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-23
+
 ### Added
 
+- `TextStyle.fallback` draws characters a font lacks from other fonts, on the same baseline.
 - `fontgen --chars <file>` builds an atlas from a chosen set of characters.
 
 ### Fixed

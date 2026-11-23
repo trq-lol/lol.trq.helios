@@ -18,6 +18,18 @@ public final class TextStyle {
         SOFT
     }
 
+    /** Finds fonts for characters a style's own font lacks. */
+    @FunctionalInterface
+    public interface Fallback {
+        /**
+         * Returns a font that has a character.
+         *
+         * @param codepoint the character
+         * @return the font, or null to draw the replacement glyph
+         */
+        MsdfFont font(int codepoint);
+    }
+
     final MsdfFont font;
     final float size;
     final int color;
@@ -26,6 +38,7 @@ public final class TextStyle {
     final float weight;
     final float letterSpacing;
     final boolean formatting;
+    final Fallback fallback;
 
     private TextStyle(Builder b) {
         this.font = b.font;
@@ -36,6 +49,7 @@ public final class TextStyle {
         this.weight = b.weight;
         this.letterSpacing = b.letterSpacing;
         this.formatting = b.formatting;
+        this.fallback = b.fallback;
     }
 
     /**
@@ -86,6 +100,7 @@ public final class TextStyle {
         private float weight;
         private float letterSpacing;
         private boolean formatting = true;
+        private Fallback fallback;
 
         private Builder(MsdfFont font) {
             this.font = Objects.requireNonNull(font, "font");
@@ -166,6 +181,18 @@ public final class TextStyle {
          */
         public Builder formatting(boolean on) {
             this.formatting = on;
+            return this;
+        }
+
+        /**
+         * Sets where characters the font lacks come from. They share the line's baseline and size. Each switch of font
+         * costs a draw call, since every font has its own atlas.
+         *
+         * @param fallback asked once per missing character per layout, so it should be cheap; null for none
+         * @return this builder
+         */
+        public Builder fallback(Fallback fallback) {
+            this.fallback = fallback;
             return this;
         }
 
