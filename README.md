@@ -258,6 +258,9 @@ so `-Poptifine` points at a local copy. Screenshots go to `harness/build/run/<ta
 
 ## For AI agents
 
+Using it from Claude Code? Install the [trq-lol plugin](https://github.com/trq-lol/claude-plugin). The rest of this
+section is for working on this repository.
+
 Start with [CLAUDE.md](CLAUDE.md) for the mental model and the traps, then [llms.txt](llms.txt) for an index of
 every doc and core source file. The tests under `helios/src/test` are the executable examples of the API, and
 `harness-mod` shows real use inside the game.
